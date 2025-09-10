@@ -1,0 +1,471 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+
+// User Schema
+const userSchema = new mongoose.Schema({
+  firstName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  lastName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true
+  },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
+  role: {
+    type: String,
+    enum: ['customer', 'admin'],
+    default: 'customer'
+  },
+  addresses: [
+    {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: String,
+      isDefault: {
+        type: Boolean,
+        default: false
+      }
+    }
+  ],
+  phone: {
+    type: String,
+    trim: true
+  },
+  avatar: {
+    type: String,
+    default: ''
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
+
+// Hash password before saving
+userSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
+
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate JWT token method
+userSchema.methods.generateAuthToken = function() {
+  return jwt.sign(
+    { 
+      id: this._id, 
+      email: this.email, 
+      role: this.role 
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE }
+  );
+};
+
+const User = mongoose.model('User', userSchema);
+
+// Middleware to verify JWT token
+const authenticateToken = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ message: 'Token is not valid.' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token is not valid.' });
+  }
+};
+
+// Routes
+
+// Register a new user
+app.post('/api/users/register', async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, phone } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists with this email.' });
+    }
+
+    // Create new user
+    const user = new User({
+      firstName,
+      lastName,
+      email,
+      password,
+      phone
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = user.generateAuthToken();
+
+    // Return user data without password
+    const userResponse = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      addresses: user.addresses,
+      avatar: user.avatar,
+      createdAt: user.createdAt
+    };
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: userResponse
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Login user
+app.post('/api/users/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid email or password.' });
+    }
+
+    // Check if password is correct
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(400).json({ message: 'Invalid email or password.' });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(400).json({ message: 'Account is deactivated.' });
+    }
+
+    // Generate token
+    const token = user.generateAuthToken();
+
+    // Return user data without password
+    const userResponse = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      addresses: user.addresses,
+      avatar: user.avatar,
+      createdAt: user.createdAt
+    };
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: userResponse
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get current user profile
+app.get('/api/users/profile', authenticateToken, async (req, res) => {
+  try {
+    res.json(req.user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update user profile
+app.put('/api/users/profile', authenticateToken, async (req, res) => {
+  try {
+    // Don't allow password update through this route
+    if (req.body.password) {
+      delete req.body.password;
+    }
+
+    req.body.updatedAt = Date.now();
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      req.body,
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
+
+    res.json({
+      message: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Get all users (admin only)
+app.get('/api/users', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
+    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get user by ID (admin only)
+app.get('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update user by ID (admin only)
+app.put('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
+    // Don't allow password update through this route
+    if (req.body.password) {
+      delete req.body.password;
+    }
+
+    req.body.updatedAt = Date.now();
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json({
+      message: 'User updated successfully',
+      user
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Delete user by ID (admin only)
+app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Admin only.' });
+    }
+
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Change password
+app.put('/api/users/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    // Find user with password
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.updatedAt = Date.now();
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Add address
+app.post('/api/users/addresses', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    // If this is the first address, set it as default
+    if (user.addresses.length === 0) {
+      req.body.isDefault = true;
+    }
+    
+    // If setting this address as default, remove default from others
+    if (req.body.isDefault) {
+      user.addresses.forEach(address => {
+        address.isDefault = false;
+      });
+    }
+    
+    user.addresses.push(req.body);
+    user.updatedAt = Date.now();
+    await user.save();
+    
+    res.json({
+      message: 'Address added successfully',
+      addresses: user.addresses
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Update address
+app.put('/api/users/addresses/:addressId', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    const addressIndex = user.addresses.findIndex(
+      addr => addr._id.toString() === req.params.addressId
+    );
+    
+    if (addressIndex === -1) {
+      return res.status(404).json({ message: 'Address not found' });
+    }
+    
+    // If setting this address as default, remove default from others
+    if (req.body.isDefault) {
+      user.addresses.forEach(address => {
+        address.isDefault = false;
+      });
+    }
+    
+    user.addresses[addressIndex] = {
+      ...user.addresses[addressIndex].toObject(),
+      ...req.body
+    };
+    
+    user.updatedAt = Date.now();
+    await user.save();
+    
+    res.json({
+      message: 'Address updated successfully',
+      addresses: user.addresses
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Delete address
+app.delete('/api/users/addresses/:addressId', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    const addressIndex = user.addresses.findIndex(
+      addr => addr._id.toString() === req.params.addressId
+    );
+    
+    if (addressIndex === -1) {
+      return res.status(404).json({ message: 'Address not found' });
+    }
+    
+    const wasDefault = user.addresses[addressIndex].isDefault;
+    user.addresses.splice(addressIndex, 1);
+    
+    // If we deleted the default address and there are other addresses, set the first one as default
+    if (wasDefault && user.addresses.length > 0) {
+      user.addresses[0].isDefault = true;
+    }
+    
+    user.updatedAt = Date.now();
+    await user.save();
+    
+    res.json({
+      message: 'Address deleted successfully',
+      addresses: user.addresses
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+const PORT = process.env.PORT || 3002;
+app.listen(PORT, () => {
+  console.log(`User service running on port ${PORT}`);
+});
