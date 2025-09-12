@@ -29,6 +29,8 @@ services:
       - "3002:3002"
     environment:
       - MONGODB_URI=mongodb://mongo:27017/userdb
+      - JWT_SECRET=supersecretjwtkey
+      - JWT_EXPIRE=7d
     depends_on:
       - mongo
     networks:
