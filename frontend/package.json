@@ -15,7 +15,12 @@
     "vue": "^3.2.13",
     "vue-axios": "^3.5.2",
     "vue-router": "^4.5.1",
-    "vuex": "^4.1.0"
+    "vuex": "^4.1.0",
+    "@headlessui/vue": "^1.7.16",
+    "@heroicons/vue": "^2.0.18",
+    "vue-toastification": "^2.0.0-rc.5",
+    "aos": "^2.3.4",
+    "swiper": "^11.0.5"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
