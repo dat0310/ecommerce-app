@@ -35,9 +35,10 @@ app.use(Toast, {
 app.config.globalProperties.$http = axios
 
 // Initialize AOS
-app.mount('#app')
 AOS.init({
   duration: 1000,
   once: true,
   offset: 100
 })
+
+app.mount('#app')

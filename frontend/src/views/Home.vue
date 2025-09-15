@@ -91,7 +91,7 @@
           <div class="col-md-4" data-aos="fade-up" data-aos-delay="100">
             <div class="text-center">
               <div class="feature-icon mb-3">
-                <i class="bi bi-truck fs-1 text-primary"></i>
+                <i class="bi bi-truck fs-1 text-primary"></i>\
               </div>
               <h5 class="fw-bold mb-3">Free Shipping</h5>
               <p class="text-muted">Free shipping on orders over $50. Fast and reliable delivery to your doorstep.</p>
@@ -169,7 +169,7 @@
               
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title fw-bold">{{ product.name }}</h5>
-                <p class="card-text text-muted flex-grow-1">{{ product.description | truncate(100) }}</p>
+                <p class="card-text text-muted flex-grow-1">{{ truncateText(product.description, 100) }}</p>
                 
                 <div class="d-flex align-items-center justify-content-between mb-3">
                   <div>
@@ -236,14 +236,7 @@ export default {
       return this.products.slice(0, 3) // Show first 3 products as featured
     }
   },
-  filters: {
-    truncate(text, length) {
-      if (text.length > length) {
-        return text.substring(0, length) + '...'
-      }
-      return text
-    }
-  },
+  
   async created() {
     try {
       const response = await this.$http.get('/api/products')
@@ -256,6 +249,14 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart'])
+    ,
+    truncateText(text, length) {
+      if (!text) return ''
+      if (text.length > length) {
+        return text.substring(0, length) + '...'
+      }
+      return text
+    }
   }
 }
 </script>
