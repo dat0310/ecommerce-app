@@ -259,10 +259,9 @@ export default {
       this.product = response.data
     } catch (error) {
       console.error('Error fetching product:', error)
-      this.$notify({
-        type: 'error',
-        title: 'Error',
-        text: 'Failed to load product. Please try again later.'
+      this.$toast.error('Failed to load product. Please try again later.', {
+        position: 'top-right',
+        timeout: 3000
       })
     } finally {
       this.loading = false
@@ -272,19 +271,17 @@ export default {
     ...mapActions(['addToCart']),
     addToCart() {
       if (this.quantity < 1) {
-        this.$notify({
-          type: 'warning',
-          title: 'Invalid Quantity',
-          text: 'Please select at least 1 item.'
+        this.$toast.warning('Please select at least 1 item.', {
+          position: 'top-right',
+          timeout: 3000
         })
         return
       }
       
       if (this.quantity > this.product.stock) {
-        this.$notify({
-          type: 'warning',
-          title: 'Insufficient Stock',
-          text: `Only ${this.product.stock} items available.`
+        this.$toast.warning(`Only ${this.product.stock} items available.`, {
+          position: 'top-right',
+          timeout: 3000
         })
         return
       }
@@ -295,10 +292,9 @@ export default {
         this.addToCart(productToAdd)
       }
       
-      this.$notify({
-        type: 'success',
-        title: 'Added to Cart',
-        text: `${this.quantity} ${this.product.name} added to your cart.`
+      this.$toast.success(`${this.quantity} ${this.product.name} added to your cart.`, {
+        position: 'top-right',
+        timeout: 3000
       })
       
       this.quantity = 1

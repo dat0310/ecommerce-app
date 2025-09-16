@@ -363,10 +363,9 @@ export default {
       this.products = response.data
     } catch (error) {
       console.error('Error fetching products:', error)
-      this.$notify({
-        type: 'error',
-        title: 'Error',
-        text: 'Failed to load products. Please try again later.'
+      this.$toast.error('Failed to load products. Please try again later.', {
+        position: 'top-right',
+        timeout: 3000
       })
     } finally {
       this.loading = false

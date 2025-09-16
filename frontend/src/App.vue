@@ -70,7 +70,7 @@
                 aria-expanded="false"
               >
                 <i class="bi bi-person-circle me-1"></i>
-                Account
+                {{ userDisplayName }}
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
@@ -168,20 +168,38 @@ import { mapGetters, mapActions } from 'vuex'
 export default {
   name: 'App',
   computed: {
-    ...mapGetters(['isAuthenticated', 'cartItemCount'])
+    ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser']),
+    userDisplayName() {
+      if (this.currentUser && this.currentUser.firstName && this.currentUser.lastName) {
+        return `${this.currentUser.firstName} ${this.currentUser.lastName}`
+      } else if (this.currentUser && this.currentUser.name) {
+        return this.currentUser.name
+      } else if (this.currentUser && this.currentUser.email) {
+        return this.currentUser.email.split('@')[0]
+      }
+      return 'User'
+    }
   },
   methods: {
-    ...mapActions(['logoutUser']),
+    ...mapActions(['logoutUser', 'fetchUserProfile']),
     async logout() {
       await this.logoutUser()
       this.$router.push('/login')
     }
   },
-  created() {
+  async created() {
     // Check if user is logged in on app start
     const token = localStorage.getItem('token')
     if (token) {
       this.$store.commit('SET_TOKEN', token)
+      // Fetch user profile to get firstName and lastName
+      try {
+        await this.fetchUserProfile()
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error)
+        // If profile fetch fails, clear the token
+        this.$store.commit('CLEAR_AUTH')
+      }
     }
   }
 }

@@ -155,10 +155,9 @@ export default {
       
       try {
         await this.login(this.form)
-        this.$notify({
-          type: 'success',
-          title: 'Login Successful',
-          text: 'Welcome back!'
+        this.$toast.success('Welcome back!', {
+          position: 'top-right',
+          timeout: 3000
         })
         this.$router.push('/')
       } catch (error) {

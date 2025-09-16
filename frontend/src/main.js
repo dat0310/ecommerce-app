@@ -6,7 +6,7 @@ import axios from 'axios'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import 'bootstrap-icons/font/bootstrap-icons.css'
-import Toast from 'vue-toastification'
+import Toast, { useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import AOS from 'aos'
 import 'aos/dist/aos.css'
@@ -33,6 +33,7 @@ app.use(Toast, {
   rtl: false
 })
 app.config.globalProperties.$http = axios
+app.config.globalProperties.$toast = useToast()
 
 // Initialize AOS
 AOS.init({

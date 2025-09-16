@@ -244,10 +244,9 @@ export default {
     updateQuantity(productId, quantity) {
       if (quantity < 1) {
         this.removeFromCart(productId)
-        this.$notify({
-          type: 'info',
-          title: 'Item removed',
-          text: 'Item has been removed from your cart.'
+        this.$toast.info('Item has been removed from your cart.', {
+          position: 'top-right',
+          timeout: 3000
         })
       } else {
         this.updateCartItemQuantity({ productId, quantity })
@@ -255,17 +254,15 @@ export default {
     },
     removeItem(productId) {
       this.removeFromCart(productId)
-      this.$notify({
-        type: 'info',
-        title: 'Item removed',
-        text: 'Item has been removed from your cart.'
+      this.$toast.info('Item has been removed from your cart.', {
+        position: 'top-right',
+        timeout: 3000
       })
     },
     proceedToCheckout() {
-      this.$notify({
-        type: 'info',
-        title: 'Checkout',
-        text: 'Checkout functionality will be implemented soon.'
+      this.$toast.info('Checkout functionality will be implemented soon.', {
+        position: 'top-right',
+        timeout: 3000
       })
       // In a real application, you would redirect to a checkout page
       // this.$router.push('/checkout')

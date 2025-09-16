@@ -93,6 +93,16 @@
                     {{ loading ? 'Creating Account...' : 'Create Account' }}
                   </button>
                 </div>
+                
+                <div class="d-grid mt-3">
+                  <router-link 
+                    to="/login" 
+                    class="btn btn-outline-primary btn-lg"
+                  >
+                    <i class="bi bi-box-arrow-in-right me-2"></i>
+                    Sign In Instead
+                  </router-link>
+                </div>
               </form>
               
               <div class="text-center mt-4">
@@ -149,12 +159,11 @@ export default {
       
       try {
         await this.register(this.form)
-        this.$notify({
-          type: 'success',
-          title: 'Registration Successful',
-          text: 'Your account has been created!'
+        this.$toast.success('Your account has been created!', {
+          position: 'top-right',
+          timeout: 3000
         })
-        this.$router.push('/')
+        this.$router.push('/login')
       } catch (error) {
         this.error = error.message || 'Registration failed. Please try again.'
       } finally {
