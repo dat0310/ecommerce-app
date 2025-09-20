@@ -58,6 +58,21 @@
                 </div>
                 
                 <div class="mb-3">
+                  <label for="role" class="form-label">Account Type</label>
+                  <select 
+                    class="form-select" 
+                    id="role" 
+                    v-model="form.role"
+                    required
+                  >
+                    <option value="">Select account type</option>
+                    <option value="customer">Customer - Shop and buy products</option>
+                    <option value="seller">Seller - Sell your products</option>
+                  </select>
+                  <div class="form-text">Choose your account type. You can change this later.</div>
+                </div>
+                
+                <div class="mb-3">
                   <label for="password" class="form-label">Password</label>
                   <input 
                     type="password" 
@@ -132,6 +147,7 @@ export default {
         lastName: '',
         email: '',
         phone: '',
+        role: '',
         password: '',
         confirmPassword: ''
       },
@@ -154,16 +170,31 @@ export default {
         return
       }
       
+      // Validate role selection
+      if (!this.form.role) {
+        this.error = 'Please select an account type.'
+        return
+      }
+      
       this.loading = true
       this.error = ''
       
       try {
-        await this.register(this.form)
+        const response = await this.register(this.form)
         this.$toast.success('Your account has been created!', {
           position: 'top-right',
           timeout: 3000
         })
-        this.$router.push('/login')
+        
+        // Wait a moment for the store to be updated
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Redirect based on role
+        if (this.form.role === 'seller') {
+          this.$router.push('/seller')
+        } else {
+          this.$router.push('/')
+        }
       } catch (error) {
         this.error = error.message || 'Registration failed. Please try again.'
       } finally {

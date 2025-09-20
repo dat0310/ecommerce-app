@@ -104,6 +104,10 @@ export default createStore({
   getters: {
     isAuthenticated: state => !!state.token,
     currentUser: state => state.user,
+    userRole: state => state.user?.role || 'customer',
+    isAdmin: state => state.user?.role === 'admin',
+    isSeller: state => state.user?.role === 'seller',
+    isCustomer: state => state.user?.role === 'customer',
     cartItems: state => state.cart,
     cartItemCount: state => state.cart.reduce((total, item) => total + item.quantity, 0),
     cartTotal: state => state.cart.reduce((total, item) => total + (item.price * item.quantity), 0)

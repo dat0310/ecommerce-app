@@ -71,12 +71,25 @@
               >
                 <i class="bi bi-person-circle me-1"></i>
                 {{ userDisplayName }}
+                <span class="badge bg-secondary ms-2">{{ currentUser?.role }}</span>
               </a>
               <ul class="dropdown-menu dropdown-menu-end">
                 <li>
                   <router-link to="/profile" class="dropdown-item d-flex align-items-center">
                     <i class="bi bi-person me-2"></i>
                     Profile
+                  </router-link>
+                </li>
+                <li v-if="isAdmin">
+                  <router-link to="/admin" class="dropdown-item d-flex align-items-center">
+                    <i class="bi bi-shield-check me-2"></i>
+                    Admin Dashboard
+                  </router-link>
+                </li>
+                <li v-if="isSeller">
+                  <router-link to="/seller" class="dropdown-item d-flex align-items-center">
+                    <i class="bi bi-shop me-2"></i>
+                    Seller Dashboard
                   </router-link>
                 </li>
                 <li><hr class="dropdown-divider"></li>
@@ -168,7 +181,7 @@ import { mapGetters, mapActions } from 'vuex'
 export default {
   name: 'App',
   computed: {
-    ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser']),
+    ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser', 'isAdmin', 'isSeller']),
     userDisplayName() {
       if (this.currentUser && this.currentUser.firstName && this.currentUser.lastName) {
         return `${this.currentUser.firstName} ${this.currentUser.lastName}`

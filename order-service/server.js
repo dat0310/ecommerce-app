@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
@@ -19,9 +20,25 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  userEmail: {
+    type: String,
+    required: true
+  },
   products: [
     {
       productId: {
+        type: String,
+        required: true
+      },
+      productName: {
+        type: String,
+        required: true
+      },
+      sellerId: {
+        type: String,
+        required: true
+      },
+      sellerName: {
         type: String,
         required: true
       },
@@ -41,7 +58,7 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending'
   },
   shippingAddress: {
@@ -61,6 +78,14 @@ const orderSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'failed', 'refunded'],
     default: 'pending'
   },
+  orderNumber: {
+    type: String,
+    unique: true
+  },
+  notes: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -71,12 +96,49 @@ const orderSchema = new mongoose.Schema({
   }
 });
 
+// Generate order number
+const generateOrderNumber = () => {
+  return 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+};
+
 const Order = mongoose.model('Order', orderSchema);
+
+// Middleware to verify JWT token
+const authenticateToken = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token is not valid.' });
+  }
+};
+
+// Middleware to check if user has required role
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+    
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+    }
+    
+    next();
+  };
+};
 
 // Routes
 
-// Get all orders
-app.get('/api/orders', async (req, res) => {
+// Get all orders (admin only)
+app.get('/api/orders', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
@@ -85,20 +147,31 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
-// Get order by ID
-app.get('/api/orders/:id', async (req, res) => {
+// Get order by ID (admin or order owner)
+app.get('/api/orders/:id', authenticateToken, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
+    
+    // Check if user can view this order
+    if (req.user.role !== 'admin' && order.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
+    }
+    
     res.json(order);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Get orders by user ID
-app.get('/api/orders/user/:userId', async (req, res) => {
+// Get orders by user ID (admin or user themselves)
+app.get('/api/orders/user/:userId', authenticateToken, async (req, res) => {
   try {
+    // Check if user can view these orders
+    if (req.user.role !== 'admin' && req.params.userId !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
+    }
+    
     const orders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
@@ -106,10 +179,28 @@ app.get('/api/orders/user/:userId', async (req, res) => {
   }
 });
 
-// Create a new order
-app.post('/api/orders', async (req, res) => {
+// Get current user's orders
+app.get('/api/orders/my-orders', authenticateToken, async (req, res) => {
   try {
-    const order = new Order(req.body);
+    const orders = await Order.find({ userId: req.user.id }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Create a new order (customers only)
+app.post('/api/orders', authenticateToken, requireRole(['customer']), async (req, res) => {
+  try {
+    const orderData = {
+      ...req.body,
+      userId: req.user.id,
+      userEmail: req.user.email,
+      orderNumber: generateOrderNumber(),
+      updatedAt: Date.now()
+    };
+    
+    const order = new Order(orderData);
     await order.save();
     res.status(201).json(order);
   } catch (error) {
@@ -117,8 +208,8 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// Update an order
-app.put('/api/orders/:id', async (req, res) => {
+// Update an order (admin only)
+app.put('/api/orders/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     req.body.updatedAt = Date.now();
     const order = await Order.findByIdAndUpdate(req.params.id, req.body, { 
@@ -132,8 +223,8 @@ app.put('/api/orders/:id', async (req, res) => {
   }
 });
 
-// Delete an order
-app.delete('/api/orders/:id', async (req, res) => {
+// Delete an order (admin only)
+app.delete('/api/orders/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const order = await Order.findByIdAndDelete(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found' });
@@ -143,10 +234,16 @@ app.delete('/api/orders/:id', async (req, res) => {
   }
 });
 
-// Update order status
-app.patch('/api/orders/:id/status', async (req, res) => {
+// Update order status (admin only)
+app.patch('/api/orders/:id/status', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { status } = req.body;
+    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status specified.' });
+    }
+    
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { 
@@ -156,16 +253,26 @@ app.patch('/api/orders/:id/status', async (req, res) => {
       { new: true }
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    res.json(order);
+    
+    res.json({
+      message: `Order status updated to ${status}`,
+      order
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
-// Update payment status
-app.patch('/api/orders/:id/payment-status', async (req, res) => {
+// Update payment status (admin only)
+app.patch('/api/orders/:id/payment-status', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const { paymentStatus } = req.body;
+    const validStatuses = ['pending', 'completed', 'failed', 'refunded'];
+    
+    if (!validStatuses.includes(paymentStatus)) {
+      return res.status(400).json({ message: 'Invalid payment status specified.' });
+    }
+    
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { 
@@ -175,9 +282,61 @@ app.patch('/api/orders/:id/payment-status', async (req, res) => {
       { new: true }
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    res.json(order);
+    
+    res.json({
+      message: `Payment status updated to ${paymentStatus}`,
+      order
+    });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// Get orders by status (admin only)
+app.get('/api/orders/status/:status', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { status } = req.params;
+    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status specified.' });
+    }
+    
+    const orders = await Order.find({ status }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get orders statistics (admin only)
+app.get('/api/orders/stats', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const totalOrders = await Order.countDocuments();
+    const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
+    const processingOrders = await Order.countDocuments({ status: 'processing' });
+    const shippedOrders = await Order.countDocuments({ status: 'shipped' });
+    const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
+    const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
+    
+    const totalRevenue = await Order.aggregate([
+      { $match: { paymentStatus: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+    
+    res.json({
+      totalOrders,
+      pendingOrders,
+      confirmedOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
+      cancelledOrders,
+      totalRevenue: totalRevenue[0]?.total || 0
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 });
 

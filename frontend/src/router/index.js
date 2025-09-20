@@ -6,6 +6,8 @@ import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Profile from '../views/Profile.vue'
 import Cart from '../views/Cart.vue'
+import AdminDashboard from '../views/AdminDashboard.vue'
+import SellerDashboard from '../views/SellerDashboard.vue'
 import store from '../store'
 
 const routes = [
@@ -46,6 +48,18 @@ const routes = [
     path: '/cart',
     name: 'Cart',
     component: Cart
+  },
+  {
+    path: '/admin',
+    name: 'AdminDashboard',
+    component: AdminDashboard,
+    meta: { requiresAuth: true, requiresRole: 'admin' }
+  },
+  {
+    path: '/seller',
+    name: 'SellerDashboard',
+    component: SellerDashboard,
+    meta: { requiresAuth: true, requiresRole: 'seller' }
   }
 ]
 
@@ -59,6 +73,15 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else if (to.meta.requiresGuest && store.getters.isAuthenticated) {
     next('/')
+  } else if (to.meta.requiresRole && store.getters.userRole !== to.meta.requiresRole) {
+    // Redirect to appropriate dashboard based on user role
+    if (store.getters.isAdmin) {
+      next('/admin')
+    } else if (store.getters.isSeller) {
+      next('/seller')
+    } else {
+      next('/')
+    }
   } else {
     next()
   }

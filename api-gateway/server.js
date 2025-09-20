@@ -419,20 +419,29 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
   customSiteTitle: 'E-commerce API Documentation'
 }));
 
-// Proxy middleware
+// Proxy middleware with path rewriting
 app.use('/api/products', createProxyMiddleware({ 
   target: 'http://product-service:3001', 
-  changeOrigin: true 
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/products': '/api/products'
+  }
 }));
 
 app.use('/api/users', createProxyMiddleware({ 
   target: 'http://user-service:3002', 
-  changeOrigin: true 
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/users': '/api/users'
+  }
 }));
 
 app.use('/api/orders', createProxyMiddleware({ 
   target: 'http://order-service:3003', 
-  changeOrigin: true 
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/orders': '/api/orders'
+  }
 }));
 
 // Health check endpoint

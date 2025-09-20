@@ -17,10 +17,14 @@ services:
       - "3001:3001"
     environment:
       - MONGODB_URI=mongodb://mongo:27017/productdb
+      - JWT_SECRET=supersecretjwtkey
     depends_on:
       - mongo
     networks:
       - ecommerce-network
+    volumes:
+      - ./product-service:/app
+      - /app/node_modules
 
   # User Service
   user-service:
@@ -35,6 +39,9 @@ services:
       - mongo
     networks:
       - ecommerce-network
+    volumes:
+      - ./user-service:/app
+      - /app/node_modules
 
   # Order Service
   order-service:
@@ -43,10 +50,14 @@ services:
       - "3003:3003"
     environment:
       - MONGODB_URI=mongodb://mongo:27017/orderdb
+      - JWT_SECRET=supersecretjwtkey
     depends_on:
       - mongo
     networks:
       - ecommerce-network
+    volumes:
+      - ./order-service:/app
+      - /app/node_modules
 
   # API Gateway
   api-gateway:
@@ -59,6 +70,9 @@ services:
       - order-service
     networks:
       - ecommerce-network
+    volumes:
+      - ./api-gateway:/app
+      - /app/node_modules
 
   # Frontend (Development with hot reload)
   frontend:

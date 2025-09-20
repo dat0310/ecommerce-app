@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['customer', 'admin'],
+    enum: ['customer', 'admin', 'seller'],
     default: 'customer'
   },
   addresses: [
@@ -129,12 +129,27 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+// Middleware to check if user has required role
+const requireRole = (roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required.' });
+    }
+    
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
+    }
+    
+    next();
+  };
+};
+
 // Routes
 
 // Register a new user
 app.post('/api/users/register', async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, role } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -142,13 +157,18 @@ app.post('/api/users/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this email.' });
     }
 
+    // Validate role if provided
+    const validRoles = ['customer', 'admin', 'seller'];
+    const userRole = role && validRoles.includes(role) ? role : 'customer';
+
     // Create new user
     const user = new User({
       firstName,
       lastName,
       email,
       password,
-      phone
+      phone,
+      role: userRole
     });
 
     await user.save();
@@ -264,12 +284,8 @@ app.put('/api/users/profile', authenticateToken, async (req, res) => {
 });
 
 // Get all users (admin only)
-app.get('/api/users', authenticateToken, async (req, res) => {
+app.get('/api/users', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
-    }
-
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     res.json(users);
   } catch (error) {
@@ -278,12 +294,8 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 });
 
 // Get user by ID (admin only)
-app.get('/api/users/:id', authenticateToken, async (req, res) => {
+app.get('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
-    }
-
     const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -293,12 +305,8 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Update user by ID (admin only)
-app.put('/api/users/:id', authenticateToken, async (req, res) => {
+app.put('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
-    }
-
     // Don't allow password update through this route
     if (req.body.password) {
       delete req.body.password;
@@ -326,12 +334,8 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
 });
 
 // Delete user by ID (admin only)
-app.delete('/api/users/:id', authenticateToken, async (req, res) => {
+app.delete('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Admin only.' });
-    }
-
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     
@@ -459,6 +463,82 @@ app.delete('/api/users/addresses/:addressId', authenticateToken, async (req, res
     res.json({
       message: 'Address deleted successfully',
       addresses: user.addresses
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Get users by role (admin only)
+app.get('/api/users/role/:role', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { role } = req.params;
+    const validRoles = ['customer', 'admin', 'seller'];
+    
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role specified.' });
+    }
+    
+    const users = await User.find({ role }).select('-password').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update user role (admin only)
+app.patch('/api/users/:id/role', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const validRoles = ['customer', 'admin', 'seller'];
+    
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role specified.' });
+    }
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { 
+        role,
+        updatedAt: Date.now()
+      },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
+    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json({
+      message: 'User role updated successfully',
+      user
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+// Toggle user active status (admin only)
+app.patch('/api/users/:id/status', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { 
+        isActive: req.body.isActive,
+        updatedAt: Date.now()
+      },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    ).select('-password');
+    
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json({
+      message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
+      user
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
