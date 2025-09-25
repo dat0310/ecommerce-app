@@ -295,13 +295,14 @@
                             required
                           >
                             <option value="">Select Category</option>
-                            <option value="Electronics">Electronics</option>
-                            <option value="Clothing">Clothing</option>
-                            <option value="Books">Books</option>
-                            <option value="Home & Garden">Home & Garden</option>
-                            <option value="Sports">Sports</option>
-                            <option value="Beauty">Beauty</option>
-                            <option value="Toys">Toys</option>
+                            <option value="Laptop">Laptop</option>
+                            <option value="Mobile">Mobile</option>
+                            <option value="Headphone">Headphone</option>
+                            <option value="Speaker">Speaker</option>
+                            <option value="Watch">Watch</option>
+                            <option value="Camera">Camera</option>
+                            <option value="Appliances">Appliances</option>
+                            <option value="Computing & Displays">Computing & Displays</option>
                             <option value="Other">Other</option>
                           </select>
                         </div>
