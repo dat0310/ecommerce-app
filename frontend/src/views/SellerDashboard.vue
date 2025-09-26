@@ -93,7 +93,7 @@
                       <div class="d-flex justify-content-between">
                         <div>
                           <h4>{{ pendingProducts.length }}</h4>
-                          <p class="mb-0">Pending</p>
+                          <p class="mb-0">Pending Approval</p>
                         </div>
                         <i class="bi bi-clock fs-1"></i>
                       </div>
@@ -156,7 +156,7 @@
                           <td>{{ product.stock }}</td>
                           <td>
                             <span class="badge" :class="getStatusBadgeClass(product.status)">
-                              {{ product.status }}
+                              {{ getStatusDisplayText(product.status) }}
                             </span>
                           </td>
                           <td>{{ formatDate(product.createdAt) }}</td>
@@ -195,6 +195,15 @@
                 </button>
               </div>
 
+              <!-- Pending Products Alert -->
+              <div v-if="pendingProducts.length > 0" class="alert alert-warning mb-4">
+                <h6><i class="bi bi-exclamation-triangle me-2"></i>Products Pending Approval</h6>
+                <p class="mb-0">
+                  You have {{ pendingProducts.length }} product(s) waiting for admin approval. 
+                  These products will not be visible to customers until they are approved.
+                </p>
+              </div>
+
               <div class="card">
                 <div class="card-body">
                   <div v-if="myProducts.length === 0" class="text-center py-4">
@@ -219,7 +228,7 @@
                           </p>
                           <div class="d-flex justify-content-between align-items-center">
                             <span class="badge" :class="getStatusBadgeClass(product.status)">
-                              {{ product.status }}
+                              {{ getStatusDisplayText(product.status) }}
                             </span>
                             <div class="btn-group">
                               <button 
@@ -247,6 +256,16 @@
             <!-- Add/Edit Product -->
             <div v-if="activeTab === 'add-product'" class="add-product">
               <h2 class="mb-4">{{ editingProduct ? 'Edit Product' : 'Add New Product' }}</h2>
+              
+              <!-- Approval Process Info -->
+              <div v-if="!editingProduct" class="alert alert-info mb-4">
+                <h6><i class="bi bi-info-circle me-2"></i>Product Approval Process</h6>
+                <p class="mb-0">
+                  When you add a new product, it will be submitted for admin approval. 
+                  Your product will appear in your dashboard with "Pending" status until an admin reviews and approves it. 
+                  Only approved products will be visible to customers in the store.
+                </p>
+              </div>
               
               <div class="card">
                 <div class="card-body">
@@ -502,7 +521,7 @@ export default {
           this.$toast.success('Product updated successfully')
         } else {
           await axios.post('/api/products', this.productForm)
-          this.$toast.success('Product added successfully')
+          this.$toast.success('Product added successfully! It is now pending admin approval.')
         }
         
         await this.loadMyProducts()
@@ -557,6 +576,14 @@ export default {
         rejected: 'bg-danger'
       }
       return classes[status] || 'bg-secondary'
+    },
+    getStatusDisplayText(status) {
+      const statusText = {
+        pending: 'Pending Approval',
+        approved: 'Approved',
+        rejected: 'Rejected'
+      }
+      return statusText[status] || status
     },
     formatDate(date) {
       return new Date(date).toLocaleDateString()

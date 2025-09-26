@@ -17,6 +17,8 @@ services:
       - "3001:3001"
     environment:
       - MONGODB_URI=mongodb://mongo:27017/productdb
+      - JWT_SECRET=supersecretjwtkey
+      - JWT_EXPIRE=7d
     depends_on:
       - mongo
     networks:

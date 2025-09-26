@@ -123,7 +123,53 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Get product by ID (public)
+// Get seller's products
+app.get('/api/products/seller/my-products', authenticateToken, requireRole(['seller']), async (req, res) => {
+  try {
+    const products = await Product.find({ sellerId: req.user.id }).sort({ createdAt: -1 });
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Test endpoint without authentication
+app.get('/api/products/test-pending', async (req, res) => {
+  try {
+    console.log('Getting pending products (test endpoint)...');
+    const products = await Product.find({ status: 'pending' }).sort({ createdAt: -1 });
+    console.log(`Found ${products.length} pending products`);
+    res.json(products);
+  } catch (error) {
+    console.error('Error getting pending products:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all pending products (admin only)
+app.get('/api/products/pending', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    console.log('Getting pending products...');
+    const products = await Product.find({ status: 'pending' }).sort({ createdAt: -1 });
+    console.log(`Found ${products.length} pending products`);
+    res.json(products);
+  } catch (error) {
+    console.error('Error getting pending products:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get all products (admin only)
+app.get('/api/products/admin/all', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get product by ID (public) - This must be LAST to avoid conflicts with specific routes
 app.get('/api/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -213,26 +259,6 @@ app.delete('/api/products/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Get seller's products
-app.get('/api/products/seller/my-products', authenticateToken, requireRole(['seller']), async (req, res) => {
-  try {
-    const products = await Product.find({ sellerId: req.user.id }).sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get all pending products (admin only)
-app.get('/api/products/pending', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const products = await Product.find({ status: 'pending' }).sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
 // Approve/reject product (admin only)
 app.patch('/api/products/:id/status', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
@@ -260,16 +286,6 @@ app.patch('/api/products/:id/status', authenticateToken, requireRole(['admin']),
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
-  }
-});
-
-// Get all products (admin only)
-app.get('/api/products/admin/all', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
   }
 });
 

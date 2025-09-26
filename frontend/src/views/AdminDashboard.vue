@@ -289,7 +289,8 @@
                           <p class="card-text">
                             <strong>Price:</strong> ${{ product.price }}<br>
                             <strong>Seller:</strong> {{ product.sellerName }}<br>
-                            <strong>Category:</strong> {{ product.category }}
+                            <strong>Category:</strong> {{ product.category }}<br>
+                            <strong>Submitted:</strong> {{ formatDate(product.createdAt) }}
                           </p>
                           <div class="btn-group w-100">
                             <button 
