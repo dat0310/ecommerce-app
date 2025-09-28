@@ -4,48 +4,51 @@
       <div class="row">
         <!-- Sidebar -->
         <div class="col-md-3 col-lg-2 px-0">
-          <div class="sidebar bg-dark text-white vh-100">
-            <div class="p-3">
-              <h4 class="text-center mb-4">
-                <i class="bi bi-shop me-2"></i>
-                Seller Panel
-              </h4>
-              <nav class="nav flex-column">
+          <div class="sidebar bg-gradient-success text-white vh-100">
+            <div class="p-4">
+              <div class="text-center mb-4">
+                <div class="seller-avatar mb-3">
+                  <i class="bi bi-shop fs-1"></i>
+                </div>
+                <h5 class="mb-0 fw-bold">Seller Panel</h5>
+                <small class="text-light opacity-75">Store Management</small>
+              </div>
+              <nav class="nav flex-column gap-2">
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link seller-nav-link" 
                   :class="{ active: activeTab === 'dashboard' }"
                   @click="activeTab = 'dashboard'"
                   href="#"
                 >
-                  <i class="bi bi-speedometer2 me-2"></i>
-                  Dashboard
+                  <i class="bi bi-speedometer2 me-3"></i>
+                  <span>Dashboard</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link seller-nav-link" 
                   :class="{ active: activeTab === 'products' }"
                   @click="activeTab = 'products'"
                   href="#"
                 >
-                  <i class="bi bi-box me-2"></i>
-                  My Products
+                  <i class="bi bi-box me-3"></i>
+                  <span>My Products</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link seller-nav-link" 
                   :class="{ active: activeTab === 'add-product' }"
                   @click="activeTab = 'add-product'"
                   href="#"
                 >
-                  <i class="bi bi-plus-circle me-2"></i>
-                  Add Product
+                  <i class="bi bi-plus-circle me-3"></i>
+                  <span>Add Product</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link seller-nav-link" 
                   :class="{ active: activeTab === 'orders' }"
                   @click="activeTab = 'orders'"
                   href="#"
                 >
-                  <i class="bi bi-bag me-2"></i>
-                  Orders
+                  <i class="bi bi-bag me-3"></i>
+                  <span>Orders</span>
                 </a>
               </nav>
             </div>
@@ -66,23 +69,10 @@
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
-                          <h4>{{ myProducts.length }}</h4>
+                          <h4>{{ approvedProducts.length }}</h4>
                           <p class="mb-0">Total Products</p>
                         </div>
                         <i class="bi bi-box fs-1"></i>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <div class="card bg-success text-white">
-                    <div class="card-body">
-                      <div class="d-flex justify-content-between">
-                        <div>
-                          <h4>{{ approvedProducts.length }}</h4>
-                          <p class="mb-0">Approved</p>
-                        </div>
-                        <i class="bi bi-check-circle fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -109,6 +99,19 @@
                           <p class="mb-0">Rejected</p>
                         </div>
                         <i class="bi bi-x-circle fs-1"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <div class="card bg-secondary text-white">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4>${{ sellerRevenue.toFixed(2) }}</h4>
+                          <p class="mb-0">Total Revenue</p>
+                        </div>
+                        <i class="bi bi-currency-dollar fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -400,6 +403,7 @@
                           <th>Total</th>
                           <th>Status</th>
                           <th>Date</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -433,6 +437,14 @@
                             </span>
                           </td>
                           <td>{{ formatDate(order.createdAt) }}</td>
+                          <td>
+                            <button 
+                              class="btn btn-sm btn-outline-primary"
+                              @click="viewOrderDetails(order)"
+                            >
+                              View Details
+                            </button>
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -457,6 +469,7 @@ export default {
       activeTab: 'dashboard',
       myProducts: [],
       myOrders: [],
+      sellerRevenue: 0,
       editingProduct: null,
       saving: false,
       productForm: {
@@ -509,9 +522,23 @@ export default {
         this.myOrders = response.data.filter(order => 
           order.products.some(product => product.sellerId === this.$store.getters.currentUser.id)
         )
+        this.calculateSellerRevenue()
       } catch (error) {
         console.error('Error loading my orders:', error)
       }
+    },
+    calculateSellerRevenue() {
+      const sellerId = this.$store.getters.currentUser.id
+      let total = 0
+      for (const order of this.myOrders) {
+        if (order.paymentStatus !== 'completed') continue
+        for (const product of order.products) {
+          if (product.sellerId === sellerId) {
+            total += (product.price || 0) * (product.quantity || 0)
+          }
+        }
+      }
+      this.sellerRevenue = total
     },
     async saveProduct() {
       this.saving = true
@@ -587,6 +614,26 @@ export default {
     },
     formatDate(date) {
       return new Date(date).toLocaleDateString()
+    },
+    viewOrderDetails(order) {
+      const sellerProducts = order.products.filter(product => 
+        product.sellerId === this.$store.getters.currentUser.id
+      )
+      
+      let details = `Order #${order.orderNumber}\n`
+      details += `Customer: ${order.userEmail}\n`
+      details += `Status: ${order.status}\n`
+      details += `Date: ${this.formatDate(order.createdAt)}\n\n`
+      details += `Your Products:\n`
+      
+      sellerProducts.forEach(product => {
+        details += `• ${product.productName} - Qty: ${product.quantity} - $${(product.price * product.quantity).toFixed(2)}\n`
+      })
+      
+      this.$toast.info('Order Details', {
+        description: details,
+        duration: 6000
+      })
     }
   }
 }
@@ -607,10 +654,42 @@ export default {
   transition: all 0.3s ease;
 }
 
-.sidebar .nav-link:hover,
-.sidebar .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white !important;
+.bg-gradient-success {
+  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.seller-avatar {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.seller-nav-link {
+  color: rgba(255, 255, 255, 0.8) !important;
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.seller-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important;
+  transform: translateX(4px);
+}
+
+.seller-nav-link.active {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .seller-dashboard {

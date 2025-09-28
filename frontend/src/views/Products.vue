@@ -156,7 +156,6 @@
                 <div class="d-flex align-items-center justify-content-between mb-3">
                   <div>
                     <span class="h4 fw-bold text-primary mb-0">${{ product.price }}</span>
-                    <small class="text-muted d-block">Free shipping</small>
                   </div>
                   <div class="text-end">
                     <small class="text-muted d-block">Stock: {{ product.stock || 0 }}</small>

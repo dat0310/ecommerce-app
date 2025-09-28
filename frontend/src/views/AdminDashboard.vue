@@ -4,57 +4,51 @@
       <div class="row">
         <!-- Sidebar -->
         <div class="col-md-3 col-lg-2 px-0">
-          <div class="sidebar bg-dark text-white vh-100">
-            <div class="p-3">
-              <h4 class="text-center mb-4">
-                <i class="bi bi-shield-check me-2"></i>
-                Admin Panel
-              </h4>
-              <nav class="nav flex-column">
+          <div class="sidebar bg-gradient-primary text-white vh-100">
+            <div class="p-4">
+              <div class="text-center mb-4">
+                <div class="admin-avatar mb-3">
+                  <i class="bi bi-shield-check fs-1"></i>
+                </div>
+                <h5 class="mb-0 fw-bold">Admin Panel</h5>
+                <small class="text-light opacity-75">Management Dashboard</small>
+              </div>
+              <nav class="nav flex-column gap-2">
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link admin-nav-link" 
                   :class="{ active: activeTab === 'dashboard' }"
                   @click="activeTab = 'dashboard'"
                   href="#"
                 >
-                  <i class="bi bi-speedometer2 me-2"></i>
-                  Dashboard
+                  <i class="bi bi-speedometer2 me-3"></i>
+                  <span>Dashboard</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link admin-nav-link" 
                   :class="{ active: activeTab === 'orders' }"
                   @click="activeTab = 'orders'"
                   href="#"
                 >
-                  <i class="bi bi-bag me-2"></i>
-                  Orders
+                  <i class="bi bi-bag me-3"></i>
+                  <span>Orders</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link admin-nav-link" 
                   :class="{ active: activeTab === 'products' }"
                   @click="activeTab = 'products'"
                   href="#"
                 >
-                  <i class="bi bi-box me-2"></i>
-                  Products
+                  <i class="bi bi-box me-3"></i>
+                  <span>Products</span>
                 </a>
                 <a 
-                  class="nav-link text-white" 
+                  class="nav-link admin-nav-link" 
                   :class="{ active: activeTab === 'users' }"
                   @click="activeTab = 'users'"
                   href="#"
                 >
-                  <i class="bi bi-people me-2"></i>
-                  Users
-                </a>
-                <a 
-                  class="nav-link text-white" 
-                  :class="{ active: activeTab === 'sellers' }"
-                  @click="activeTab = 'sellers'"
-                  href="#"
-                >
-                  <i class="bi bi-shop me-2"></i>
-                  Sellers
+                  <i class="bi bi-people me-3"></i>
+                  <span>Users</span>
                 </a>
               </nav>
             </div>
@@ -70,6 +64,32 @@
               
               <!-- Stats Cards -->
               <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                  <div class="card bg-info text-white">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4>{{ approvedProducts.length }}</h4>
+                          <p class="mb-0">Total Products</p>
+                        </div>
+                        <i class="bi bi-box fs-1"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <div class="card bg-warning text-white">
+                    <div class="card-body">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h4>{{ pendingProducts.length }}</h4>
+                          <p class="mb-0">Pending Products</p>
+                        </div>
+                        <i class="bi bi-hourglass-split fs-1"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <div class="col-md-3 mb-3">
                   <div class="card bg-primary text-white">
                     <div class="card-body">
@@ -92,32 +112,6 @@
                           <p class="mb-0">Pending Orders</p>
                         </div>
                         <i class="bi bi-clock fs-1"></i>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <div class="card bg-info text-white">
-                    <div class="card-body">
-                      <div class="d-flex justify-content-between">
-                        <div>
-                          <h4>{{ stats.totalRevenue || 0 }}</h4>
-                          <p class="mb-0">Total Revenue</p>
-                        </div>
-                        <i class="bi bi-currency-dollar fs-1"></i>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-md-3 mb-3">
-                  <div class="card bg-warning text-white">
-                    <div class="card-body">
-                      <div class="d-flex justify-content-between">
-                        <div>
-                          <h4>{{ pendingProducts.length }}</h4>
-                          <p class="mb-0">Pending Products</p>
-                        </div>
-                        <i class="bi bi-box fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -452,6 +446,9 @@ export default {
         return this.orders
       }
       return this.orders.filter(order => order.status === this.orderFilter)
+    },
+    approvedProducts() {
+      return this.allProducts.filter(product => product.status === 'approved')
     }
   },
   async mounted() {
@@ -465,7 +462,7 @@ export default {
           this.loadOrders(),
           this.loadPendingProducts(),
           this.loadUsers(),
-          this.loadSellers()
+          this.loadAllProducts()
         ])
       } catch (error) {
         console.error('Error loading dashboard data:', error)
@@ -504,12 +501,12 @@ export default {
         console.error('Error loading users:', error)
       }
     },
-    async loadSellers() {
+    async loadAllProducts() {
       try {
-        const response = await axios.get('/api/users/role/seller')
-        this.sellers = response.data
+        const response = await axios.get('/api/products/admin/all')
+        this.allProducts = response.data
       } catch (error) {
-        console.error('Error loading sellers:', error)
+        console.error('Error loading all products:', error)
       }
     },
     async updateOrderStatus(orderId, status) {
@@ -546,7 +543,6 @@ export default {
       try {
         await axios.patch(`/api/users/${userId}/role`, { role })
         await this.loadUsers()
-        await this.loadSellers()
         this.$toast.success('User role updated successfully')
       } catch (error) {
         console.error('Error updating user role:', error)
@@ -557,7 +553,6 @@ export default {
       try {
         await axios.patch(`/api/users/${userId}/status`, { isActive })
         await this.loadUsers()
-        await this.loadSellers()
         this.$toast.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`)
       } catch (error) {
         console.error('Error toggling user status:', error)
@@ -565,8 +560,18 @@ export default {
       }
     },
     viewOrder(order) {
-      // Implement order detail view
-      console.log('View order:', order)
+      this.$toast.info('Order Details', {
+        description: `
+          Order #${order.orderNumber}
+          Customer: ${order.userEmail}
+          Total: $${order.totalAmount}
+          Status: ${order.status}
+          Payment: ${order.paymentStatus}
+          Date: ${this.formatDate(order.createdAt)}
+          Products: ${order.products.length} items
+        `,
+        duration: 5000
+      })
     },
     getStatusBadgeClass(status) {
       const classes = {
@@ -591,9 +596,7 @@ export default {
     formatDate(date) {
       return new Date(date).toLocaleDateString()
     },
-    getSellerProductCount(sellerId) {
-      return this.allProducts.filter(product => product.sellerId === sellerId).length
-    }
+    
   }
 }
 </script>
@@ -613,10 +616,42 @@ export default {
   transition: all 0.3s ease;
 }
 
-.sidebar .nav-link:hover,
-.sidebar .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: white !important;
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.admin-avatar {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.admin-nav-link {
+  color: rgba(255, 255, 255, 0.8) !important;
+  border-radius: 12px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+}
+
+.admin-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff !important;
+  transform: translateX(4px);
+}
+
+.admin-nav-link.active {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .admin-dashboard {
