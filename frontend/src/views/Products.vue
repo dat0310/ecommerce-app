@@ -131,8 +131,13 @@
                   <span v-else class="badge bg-danger">Out of Stock</span>
                 </div>
                 <div class="position-absolute top-0 start-0 p-2">
-                  <button class="btn btn-sm btn-light rounded-circle">
-                    <i class="bi bi-heart"></i>
+                  <button 
+                    class="btn btn-sm btn-light rounded-circle"
+                    @click.stop="toggleWishlist(product)"
+                    :aria-pressed="isWishlisted(product._id) ? 'true' : 'false'"
+                    :title="isWishlisted(product._id) ? 'Remove from Wishlist' : 'Add to Wishlist'"
+                  >
+                    <i :class="isWishlisted(product._id) ? 'bi bi-heart-fill text-danger' : 'bi bi-heart'"></i>
                   </button>
                 </div>
                 <div class="position-absolute bottom-0 start-0 end-0 p-3">
@@ -173,7 +178,7 @@
                     View Details
                   </router-link>
                   <button 
-                    @click="addToCart(product)" 
+                    @click="handleAddToCart(product)" 
                     class="btn btn-outline-primary hover-lift"
                     :disabled="product.stock === 0"
                   >
@@ -226,7 +231,7 @@
                             View
                           </router-link>
                           <button 
-                            @click="addToCart(product)" 
+                            @click="handleAddToCart(product)" 
                             class="btn btn-outline-primary btn-sm"
                             :disabled="product.stock === 0"
                           >
@@ -301,7 +306,8 @@ export default {
       sortBy: 'name',
       viewMode: 'grid',
       currentPage: 1,
-      itemsPerPage: 9
+      itemsPerPage: 9,
+      wishlistIds: []
     }
   },
   computed: {
@@ -360,6 +366,7 @@ export default {
     try {
       const response = await this.$http.get('/api/products')
       this.products = response.data
+      this.loadWishlist()
     } catch (error) {
       console.error('Error fetching products:', error)
       this.$toast.error('Failed to load products. Please try again later.', {
@@ -372,6 +379,51 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
+    handleAddToCart(product) {
+      if (!product || product.stock === 0) return
+      this.addToCart(product)
+      this.$toast && this.$toast.success('Added to cart', {
+        position: 'top-right',
+        timeout: 2000
+      })
+    },
+    loadWishlist() {
+      try {
+        const raw = localStorage.getItem('wishlist')
+        const items = raw ? JSON.parse(raw) : []
+        this.wishlistIds = items.map(item => item._id)
+      } catch (_) {
+        this.wishlistIds = []
+      }
+    },
+    saveWishlist(items) {
+      localStorage.setItem('wishlist', JSON.stringify(items))
+    },
+    isWishlisted(productId) {
+      return this.wishlistIds.includes(productId)
+    },
+    toggleWishlist(product) {
+      if (!product) return
+      // read current list
+      let items = []
+      try {
+        items = JSON.parse(localStorage.getItem('wishlist') || '[]')
+      } catch (_) {
+        items = []
+      }
+      const index = items.findIndex(it => it._id === product._id)
+      if (index >= 0) {
+        items.splice(index, 1)
+        this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
+      } else {
+        const minimal = { _id: product._id, name: product.name, price: product.price, image: product.image || '' }
+        items.push(minimal)
+        this.$toast && this.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
+      }
+      this.saveWishlist(items)
+      this.wishlistIds = items.map(it => it._id)
+      window.dispatchEvent(new Event('wishlist-updated'))
+    },
     truncateText(text, length) {
       if (!text) return ''
       if (text.length > length) {
@@ -482,6 +534,7 @@ export default {
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 1;
+  pointer-events: none; /* ensure overlay never blocks clicks */
 }
 
 .product-card:hover::before {
@@ -491,6 +544,13 @@ export default {
 .product-card:hover {
   transform: translateY(-12px) scale(1.02);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Ensure interactive content sits above any decorative layers */
+.product-card .card-body,
+.product-card .card-footer {
+  position: relative;
+  z-index: 2;
 }
 
 .product-card .card-img-top {

@@ -73,7 +73,7 @@
                 {{ userDisplayName }}
                 <span class="badge bg-secondary ms-2">{{ currentUser?.role }}</span>
               </a>
-              <ul class="dropdown-menu dropdown-menu-end">
+              <ul class="dropdown-menu dropdown-menu-end wishlist-dropdown">
                 <li>
                   <router-link to="/profile" class="dropdown-item d-flex align-items-center">
                     <i class="bi bi-person me-2"></i>
@@ -91,6 +91,29 @@
                     <i class="bi bi-shop me-2"></i>
                     Seller Dashboard
                   </router-link>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li class="px-3 py-1 text-muted small d-flex align-items-center justify-content-between">
+                  <span><i class="bi bi-heart me-2"></i>Wishlist</span>
+                  <span class="badge bg-danger">{{ wishlistCount }}</span>
+                </li>
+                <li v-if="wishlistItems.length === 0" class="px-3 py-2 text-muted small">Your wishlist is empty.</li>
+                <li v-for="item in wishlistItems.slice(0, 6)" :key="item._id" class="px-2">
+                  <div class="d-flex align-items-center gap-2 wishlist-item">
+                    <img :src="item.image || '/placeholder-product.jpg'" :alt="item.name" class="wishlist-thumb">
+                    <div class="flex-grow-1">
+                      <div class="fw-semibold small text-truncate" :title="item.name">{{ item.name }}</div>
+                      <div class="text-muted small">${{ item.price }}</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                      <router-link :to="'/products/' + item._id" class="btn btn-sm btn-outline-primary">
+                        View
+                      </router-link>
+                      <button class="btn btn-sm btn-outline-danger" @click.prevent="removeFromWishlist(item._id)">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </div>
+                  </div>
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
@@ -180,6 +203,11 @@ import { mapGetters, mapActions } from 'vuex'
 
 export default {
   name: 'App',
+  data() {
+    return {
+      wishlistItems: []
+    }
+  },
   computed: {
     ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser', 'isAdmin', 'isSeller']),
     userDisplayName() {
@@ -191,6 +219,9 @@ export default {
         return this.currentUser.email.split('@')[0]
       }
       return 'User'
+    },
+    wishlistCount() {
+      return this.wishlistItems.length
     }
   },
   methods: {
@@ -198,6 +229,20 @@ export default {
     async logout() {
       await this.logoutUser()
       this.$router.push('/login')
+    },
+    loadWishlist() {
+      try {
+        const raw = localStorage.getItem('wishlist')
+        this.wishlistItems = raw ? JSON.parse(raw) : []
+      } catch (_) {
+        this.wishlistItems = []
+      }
+    },
+    removeFromWishlist(productId) {
+      const next = this.wishlistItems.filter(i => i._id !== productId)
+      localStorage.setItem('wishlist', JSON.stringify(next))
+      this.wishlistItems = next
+      this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1500 })
     }
   },
   async created() {
@@ -214,6 +259,16 @@ export default {
         this.$store.commit('CLEAR_AUTH')
       }
     }
+    // init wishlist
+    this.loadWishlist()
+    // react to cross-tab changes
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'wishlist') {
+        this.loadWishlist()
+      }
+    })
+    // react to in-tab updates from components
+    window.addEventListener('wishlist-updated', this.loadWishlist)
   }
 }
 </script>
@@ -239,6 +294,23 @@ export default {
   border-radius: 12px;
   padding: 0.5rem 0;
   margin-top: 0.5rem;
+}
+
+.wishlist-dropdown {
+  min-width: 320px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.wishlist-item {
+  padding: 6px 4px;
+}
+
+.wishlist-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
 }
 
 .dropdown-item {

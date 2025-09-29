@@ -67,7 +67,10 @@
             </div>
 
             <!-- Product Title -->
-            <h1 class="display-5 fw-bold mb-3">{{ product.name }}</h1>
+            <h1 class="display-5 fw-bold mb-1">{{ product.name }}</h1>
+            <div class="mb-3">
+              <small class="text-muted">Sold by: {{ shopDisplayName }}</small>
+            </div>
 
             <!-- Rating -->
             <div class="d-flex align-items-center mb-3">
@@ -156,9 +159,9 @@
                   <i class="bi bi-cart-plus me-2"></i>
                   {{ product.stock > 0 ? 'Add to Cart' : 'Out of Stock' }}
                 </button>
-                <button class="btn btn-outline-primary btn-lg flex-md-fill hover-lift">
-                  <i class="bi bi-heart me-2"></i>
-                  Add to Wishlist
+                <button @click="handleAddToWishlist" class="btn btn-outline-primary btn-lg flex-md-fill hover-lift">
+                  <i :class="isWishlisted ? 'bi bi-heart-fill me-2 text-danger' : 'bi bi-heart me-2'"></i>
+                  {{ isWishlisted ? 'Wishlisted' : 'Add to Wishlist' }}
                 </button>
               </div>
             </div>
@@ -170,10 +173,6 @@
                   <i class="bi bi-arrow-left me-2"></i>
                   Back to Products
                 </button>
-                <router-link to="/products" class="btn btn-outline-primary hover-lift">
-                  <i class="bi bi-grid me-2"></i>
-                  Continue Shopping
-                </router-link>
               </div>
             </div>
 
@@ -249,7 +248,20 @@ export default {
     return {
       loading: true,
       product: null,
-      quantity: 1
+      quantity: 1,
+      isWishlisted: false
+    }
+  },
+  computed: {
+    shopDisplayName() {
+      // try common fields; fallback to 'Unknown shop'
+      return (
+        this.product?.sellerName ||
+        this.product?.shopName ||
+        this.product?.seller?.name ||
+        this.product?.seller?.shopName ||
+        'Unknown shop'
+      )
     }
   },
   async created() {
@@ -257,6 +269,7 @@ export default {
       const productId = this.$route.params.id
       const response = await this.$http.get(`/api/products/${productId}`)
       this.product = response.data
+      this.syncWishlistState()
     } catch (error) {
       console.error('Error fetching product:', error)
       this.$toast.error('Failed to load product. Please try again later.', {
@@ -298,6 +311,54 @@ export default {
       })
       
       this.quantity = 1
+    },
+    handleAddToWishlist() {
+      if (!this.product) return
+      const key = 'wishlist'
+      const stored = localStorage.getItem(key)
+      let wishlist = []
+      try {
+        wishlist = stored ? JSON.parse(stored) : []
+      } catch (_) {
+        wishlist = []
+      }
+      const index = wishlist.findIndex(item => item._id === this.product._id)
+      if (index >= 0) {
+        wishlist.splice(index, 1)
+        this.$toast && this.$toast.info('Removed from your wishlist.', {
+          position: 'top-right',
+          timeout: 2000
+        })
+      } else {
+        const minimal = {
+          _id: this.product._id,
+          name: this.product.name,
+          price: this.product.price,
+          image: this.product.image || '',
+          sellerName: this.shopDisplayName
+        }
+        wishlist.push(minimal)
+        this.$toast && this.$toast.success('Added to your wishlist.', {
+          position: 'top-right',
+          timeout: 2000
+        })
+      }
+      localStorage.setItem(key, JSON.stringify(wishlist))
+      this.syncWishlistState()
+      window.dispatchEvent(new Event('wishlist-updated'))
+    }
+    ,
+    syncWishlistState() {
+      if (!this.product) {
+        this.isWishlisted = false
+        return
+      }
+      try {
+        const items = JSON.parse(localStorage.getItem('wishlist') || '[]')
+        this.isWishlisted = items.some(i => i._id === this.product._id)
+      } catch (_) {
+        this.isWishlisted = false
+      }
     }
   }
 }
