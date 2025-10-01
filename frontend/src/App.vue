@@ -92,28 +92,14 @@
                     Seller Dashboard
                   </router-link>
                 </li>
-                <li><hr class="dropdown-divider"></li>
-                <li class="px-3 py-1 text-muted small d-flex align-items-center justify-content-between">
-                  <span><i class="bi bi-heart me-2"></i>Wishlist</span>
-                  <span class="badge bg-danger">{{ wishlistCount }}</span>
-                </li>
-                <li v-if="wishlistItems.length === 0" class="px-3 py-2 text-muted small">Your wishlist is empty.</li>
-                <li v-for="item in wishlistItems.slice(0, 6)" :key="item._id" class="px-2">
-                  <div class="d-flex align-items-center gap-2 wishlist-item">
-                    <img :src="item.image || '/placeholder-product.jpg'" :alt="item.name" class="wishlist-thumb">
-                    <div class="flex-grow-1">
-                      <div class="fw-semibold small text-truncate" :title="item.name">{{ item.name }}</div>
-                      <div class="text-muted small">${{ item.price }}</div>
+                <li>
+                  <router-link to="/wishlist" class="dropdown-item d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                      <i class="bi bi-heart me-2"></i>
+                      Wishlist
                     </div>
-                    <div class="d-flex align-items-center gap-1">
-                      <router-link :to="'/products/' + item._id" class="btn btn-sm btn-outline-primary">
-                        View
-                      </router-link>
-                      <button class="btn btn-sm btn-outline-danger" @click.prevent="removeFromWishlist(item._id)">
-                        <i class="bi bi-x"></i>
-                      </button>
-                    </div>
-                  </div>
+                    <span class="badge bg-danger ms-auto">{{ wishlistCount }}</span>
+                  </router-link>
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
@@ -294,12 +280,28 @@ export default {
   border-radius: 12px;
   padding: 0.5rem 0;
   margin-top: 0.5rem;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .wishlist-dropdown {
-  min-width: 320px;
+  width: 280px;
   max-height: 360px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
 }
 
 .wishlist-item {
@@ -314,10 +316,17 @@ export default {
 }
 
 .dropdown-item {
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1rem;
   transition: all 0.3s ease;
   border-radius: 8px;
   margin: 0 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: calc(100% - 1rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dropdown-item:hover {
@@ -351,5 +360,57 @@ export default {
   .footer .text-md-end {
     text-align: center !important;
   }
+}
+
+.dropdown-menu {
+  border: none;
+  box-shadow: var(--shadow-lg);
+  border-radius: 12px;
+  padding: 0.5rem 0;
+  margin-top: 0.5rem;
+  width: 280px;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+.dropdown-item {
+  padding: 0.75rem 1rem;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  margin: 0 0.5rem;
+  display: flex;
+  align-items: center;
+  width: calc(100% - 1rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-item i {
+  margin-right: 0.75rem;
+  flex-shrink: 0;
+}
+
+.dropdown-item .badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.dropdown-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dropdown-menu::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.dropdown-item:hover {
+  background: var(--bs-dropdown-link-hover-bg);
+  color: var(--bs-dropdown-link-hover-color);
 }
 </style>

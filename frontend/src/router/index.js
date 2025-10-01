@@ -8,6 +8,7 @@ import Profile from '../views/Profile.vue'
 import Cart from '../views/Cart.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import SellerDashboard from '../views/SellerDashboard.vue'
+import Wishlist from '../views/Wishlist.vue'
 import store from '../store'
 
 const routes = [
@@ -60,6 +61,11 @@ const routes = [
     name: 'SellerDashboard',
     component: SellerDashboard,
     meta: { requiresAuth: true, requiresRole: 'seller' }
+  },
+  {
+    path: '/wishlist',
+    name: 'Wishlist',
+    component: Wishlist
   }
 ]
 
