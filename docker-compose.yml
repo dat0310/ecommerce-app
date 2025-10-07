@@ -50,6 +50,19 @@ services:
     networks:
       - ecommerce-network
 
+  # Cart Service
+  cart-service:
+    build: ./cart-service
+    ports:
+      - "3004:3004"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/cartdb
+      - JWT_SECRET=supersecretjwtkey
+    depends_on:
+      - mongo
+    networks:
+      - ecommerce-network
+
   # API Gateway
   api-gateway:
     build: ./api-gateway
@@ -59,6 +72,7 @@ services:
       - product-service
       - user-service
       - order-service
+      - cart-service
     networks:
       - ecommerce-network
 

@@ -134,6 +134,9 @@
                         </button>
                       </div>
                     </div>
+                    <div class="select-checkbox position-absolute top-50 end-0 translate-middle-y pe-3">
+                      <input class="form-check-input" type="checkbox" :value="item._id" v-model="selectedIds" :id="`select-${item._id}`" />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -151,8 +154,8 @@
               </div>
               <div class="card-body p-4">
                 <div class="summary-item d-flex justify-content-between mb-3">
-                  <span>Subtotal ({{ cartItemCount }} items):</span>
-                  <span class="fw-semibold">${{ cartTotal.toFixed(2) }}</span>
+                  <span>Subtotal ({{ selectedItemCount }} items):</span>
+                  <span class="fw-semibold">${{ selectedSubtotal.toFixed(2) }}</span>
                 </div>
                 
                 <div class="summary-item d-flex justify-content-between mb-3">
@@ -160,11 +163,7 @@
                   <span class="fw-semibold text-success">${{ shippingCost.toFixed(2) }}</span>
                 </div>
                 
-                <div class="summary-item d-flex justify-content-between mb-3">
-                  <span>Tax (8%):</span>
-                  <span class="fw-semibold">${{ taxAmount.toFixed(2) }}</span>
-                </div>
-                
+                                
                 <hr class="my-4">
                 
                 <div class="summary-total d-flex justify-content-between mb-4">
@@ -227,16 +226,28 @@ export default {
   data() {
     return {
       shippingCost: 5.99,
-      taxRate: 0.08 // 8% tax
+      selectedIds: []
     }
   },
   computed: {
-    ...mapGetters(['cartItems', 'cartItemCount', 'cartTotal', 'isAuthenticated']),
-    taxAmount() {
-      return this.cartTotal * this.taxRate
+    ...mapGetters(['cartItems', 'cartItemCount', 'isAuthenticated']),
+    selectedItems() {
+      return this.cartItems.filter(i => this.selectedIds.includes(i._id))
+    },
+    selectedItemCount() {
+      return this.selectedItems.reduce((t, i) => t + i.quantity, 0)
+    },
+    selectedSubtotal() {
+      return this.selectedItems.reduce((t, i) => t + (i.price * i.quantity), 0)
     },
     totalAmount() {
-      return this.cartTotal + this.shippingCost + this.taxAmount
+      return this.selectedSubtotal + this.shippingCost
+    }
+  },
+  mounted() {
+    const id = this.$route.query?.select
+    if (id && this.cartItems.some(i => i._id === id)) {
+      if (!this.selectedIds.includes(id)) this.selectedIds.push(id)
     }
   },
   methods: {

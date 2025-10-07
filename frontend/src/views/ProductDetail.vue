@@ -151,13 +151,20 @@
             <!-- Action Buttons -->
             <div class="action-buttons mb-4">
               <div class="d-grid gap-2 d-md-flex">
-                <button 
-                  @click="addToCart" 
+                <button
+                  @click="handleAddToCart"
                   class="btn btn-primary btn-lg flex-md-fill hover-lift"
                   :disabled="product.stock === 0"
                 >
                   <i class="bi bi-cart-plus me-2"></i>
                   {{ product.stock > 0 ? 'Add to Cart' : 'Out of Stock' }}
+                </button>
+                <button
+                  @click="handleBuyNow"
+                  class="btn btn-success btn-lg flex-md-fill hover-lift"
+                  :disabled="product.stock === 0"
+                >
+                  Buy
                 </button>
                 <button @click="handleAddToWishlist" class="btn btn-outline-primary btn-lg flex-md-fill hover-lift">
                   <i :class="isWishlisted ? 'bi bi-heart-fill me-2 text-danger' : 'bi bi-heart me-2'"></i>
@@ -282,7 +289,16 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
-    addToCart() {
+    async handleBuyNow() {
+      if (!this.product) return
+      // Add to cart with selected quantity
+      for (let i = 0; i < this.quantity; i++) {
+        await this.addToCart({ ...this.product })
+      }
+      // Redirect to cart and auto-select this item via query param
+      this.$router.push({ path: '/cart', query: { select: this.product._id } })
+    },
+    handleAddToCart() {
       if (this.quantity < 1) {
         this.$toast.warning('Please select at least 1 item.', {
           position: 'top-right',
@@ -290,7 +306,7 @@ export default {
         })
         return
       }
-      
+
       if (this.quantity > this.product.stock) {
         this.$toast.warning(`Only ${this.product.stock} items available.`, {
           position: 'top-right',
@@ -298,18 +314,18 @@ export default {
         })
         return
       }
-      
+
       // Add the product to cart with the selected quantity
       const productToAdd = { ...this.product }
       for (let i = 0; i < this.quantity; i++) {
         this.addToCart(productToAdd)
       }
-      
+
       this.$toast.success(`${this.quantity} ${this.product.name} added to your cart.`, {
         position: 'top-right',
         timeout: 3000
       })
-      
+
       this.quantity = 1
     },
     handleAddToWishlist() {

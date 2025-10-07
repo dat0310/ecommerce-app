@@ -404,6 +404,58 @@ const swaggerOptions = {
             }
           }
         }
+      },
+      '/api/cart': {
+        get: {
+          tags: ['Cart'],
+          summary: 'Get current user cart',
+          responses: {
+            '200': { description: 'Cart retrieved' }
+          }
+        },
+        put: {
+          tags: ['Cart'],
+          summary: 'Replace entire cart',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', properties: { items: { type: 'array' } } } } }
+          },
+          responses: { '200': { description: 'Cart replaced' } }
+        },
+        delete: {
+          tags: ['Cart'],
+          summary: 'Clear cart',
+          responses: { '200': { description: 'Cart cleared' } }
+        }
+      },
+      '/api/cart/items': {
+        post: {
+          tags: ['Cart'],
+          summary: 'Add item to cart',
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', properties: { productId: { type: 'string' }, quantity: { type: 'integer' } }, required: ['productId'] } } }
+          },
+          responses: { '201': { description: 'Item added' } }
+        }
+      },
+      '/api/cart/items/{productId}': {
+        patch: {
+          tags: ['Cart'],
+          summary: 'Update item quantity',
+          parameters: [ { name: 'productId', in: 'path', required: true, schema: { type: 'string' } } ],
+          requestBody: {
+            required: true,
+            content: { 'application/json': { schema: { type: 'object', properties: { quantity: { type: 'integer' } }, required: ['quantity'] } } }
+          },
+          responses: { '200': { description: 'Item updated' } }
+        },
+        delete: {
+          tags: ['Cart'],
+          summary: 'Remove item',
+          parameters: [ { name: 'productId', in: 'path', required: true, schema: { type: 'string' } } ],
+          responses: { '200': { description: 'Item removed' } }
+        }
       }
     }
   },
@@ -441,6 +493,14 @@ app.use('/api/orders', createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: {
     '^/api/orders': '/api/orders'
+  }
+}));
+
+app.use('/api/cart', createProxyMiddleware({ 
+  target: 'http://cart-service:3004', 
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/cart': '/api/cart'
   }
 }));
 
