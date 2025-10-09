@@ -22,19 +22,15 @@
         
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto">
-            <li class="nav-item">
-              <router-link to="/" class="nav-link d-flex align-items-center">
-                <i class="bi bi-house me-1"></i>
-                Home
-              </router-link>
-            </li>
-            <li class="nav-item">
-              <router-link to="/products" class="nav-link d-flex align-items-center">
-                <i class="bi bi-grid me-1"></i>
-                Products
-              </router-link>
-            </li>
+
+
           </ul>
+          <div class="d-flex mx-auto w-50">
+            <div class="input-group">
+              <input type="text" class="form-control" v-model="searchQueryModel" @keyup.enter="executeSearch" placeholder="Search products...">
+              <button class="btn btn-primary" type="button" @click="executeSearch">Search</button>
+            </div>
+          </div>
           
           <ul class="navbar-nav">
             <li class="nav-item">
@@ -139,7 +135,7 @@
             <h6 class="fw-bold mb-3">Quick Links</h6>
             <ul class="list-unstyled">
               <li class="mb-2"><router-link to="/" class="text-muted text-decoration-none">Home</router-link></li>
-              <li class="mb-2"><router-link to="/products" class="text-muted text-decoration-none">Products</router-link></li>
+
               <li class="mb-2"><router-link to="/cart" class="text-muted text-decoration-none">Cart</router-link></li>
             </ul>
           </div>
@@ -211,7 +207,12 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['logoutUser', 'fetchUserProfile']),
+    ...mapActions(['logoutUser', 'fetchUserProfile', 'updateSearchQuery']),
+    executeSearch() {
+      if (this.$route.path !== '/products') {
+        this.$router.push('/products');
+      }
+    },
     async logout() {
       await this.logoutUser()
       this.$router.push('/login')

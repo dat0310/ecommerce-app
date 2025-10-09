@@ -15,7 +15,8 @@ export default createStore({
   state: {
     token: localStorage.getItem('token') || '',
     user: null,
-    cart: JSON.parse(localStorage.getItem('cart')) || []
+    cart: JSON.parse(localStorage.getItem('cart')) || [],
+    searchQuery: ''
   },
   mutations: {
     SET_TOKEN(state, token) {
@@ -70,6 +71,9 @@ export default createStore({
     CLEAR_CART(state) {
       state.cart = []
       localStorage.removeItem('cart')
+    },
+    SET_SEARCH_QUERY(state, query) {
+      state.searchQuery = query
     }
   },
   actions: {
@@ -148,6 +152,9 @@ export default createStore({
         await axios.delete('/api/cart')
       }
       commit('CLEAR_CART')
+    },
+    updateSearchQuery({ commit }, query) {
+      commit('SET_SEARCH_QUERY', query)
     }
   },
   getters: {
@@ -159,6 +166,7 @@ export default createStore({
     isCustomer: state => state.user?.role === 'customer',
     cartItems: state => state.cart,
     cartItemCount: state => state.cart.reduce((total, item) => total + item.quantity, 0),
-    cartTotal: state => state.cart.reduce((total, item) => total + (item.price * item.quantity), 0)
+    cartTotal: state => state.cart.reduce((total, item) => total + (item.price * item.quantity), 0),
+    searchQuery: state => state.searchQuery
   }
 })

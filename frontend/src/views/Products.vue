@@ -1,7 +1,20 @@
 <template>
   <div class="products">
+    <!-- Sale Banner and Search -->
+    <section v-if="!limit" class="py-5 text-center container">
+      <div class="row py-lg-5">
+        <div class="col-lg-6 col-md-8 mx-auto">
+
+          <div class="alert alert-warning" role="alert">
+            <h4 class="alert-heading">10/10 Ngày hội săn sale!</h4>
+            <p>Don't miss out on our biggest sale of the year!.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Hero Section -->
-    <section class="products-hero bg-gradient-primary text-white py-5">
+    <section v-if="!limit" class="products-hero bg-gradient-primary text-white py-5">
       <div class="container">
         <div class="row align-items-center">
           <div class="col-lg-8">
@@ -24,21 +37,9 @@
     </section>
 
     <!-- Filters and Search -->
-    <section class="py-4 bg-light border-bottom">
+    <section v-if="!limit" class="py-4 bg-light border-bottom">
       <div class="container">
         <div class="row align-items-center">
-          <div class="col-lg-4 mb-3 mb-lg-0">
-            <div class="search-box position-relative">
-              <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
-              <input 
-                type="text" 
-                v-model="searchQuery" 
-                placeholder="Search products..." 
-                class="form-control ps-5"
-                data-aos="fade-up"
-              >
-            </div>
-          </div>
           
           <div class="col-lg-3 mb-3 mb-lg-0">
             <select v-model="selectedCategory" class="form-select" data-aos="fade-up" data-aos-delay="100">
@@ -249,7 +250,7 @@
         </div>
 
         <!-- Pagination -->
-        <div v-if="totalPages > 1" class="row mt-5">
+        <div v-if="!limit && totalPages > 1" class="row mt-5">
           <div class="col-12">
             <nav aria-label="Products pagination">
               <ul class="pagination justify-content-center">
@@ -293,16 +294,21 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { mapActions, mapGetters } from 'vuex'
 
 export default {
   name: 'Products',
+  props: {
+    limit: {
+      type: Number,
+      default: null
+    }
+  },
   data() {
     return {
       loading: true,
       products: [],
       selectedCategory: '',
-      searchQuery: '',
       sortBy: 'name',
       viewMode: 'grid',
       currentPage: 1,
@@ -311,6 +317,7 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['searchQuery']),
     categories() {
       const categories = new Set()
       this.products.forEach(product => {
@@ -344,9 +351,12 @@ export default {
       return filtered
     },
     paginatedProducts() {
-      const start = (this.currentPage - 1) * this.itemsPerPage
-      const end = start + this.itemsPerPage
-      return this.filteredProducts.slice(start, end)
+      if (this.limit) {
+        return this.filteredProducts.slice(0, this.limit);
+      }
+      const start = (this.currentPage - 1) * this.itemsPerPage;
+      const end = start + this.itemsPerPage;
+      return this.filteredProducts.slice(start, end);
     },
     totalPages() {
       return Math.ceil(this.filteredProducts.length / this.itemsPerPage)
