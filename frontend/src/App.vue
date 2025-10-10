@@ -187,6 +187,7 @@ export default {
   name: 'App',
   data() {
     return {
+      searchQueryModel: '',
       wishlistItems: []
     }
   },
@@ -209,8 +210,13 @@ export default {
   methods: {
     ...mapActions(['logoutUser', 'fetchUserProfile', 'updateSearchQuery']),
     executeSearch() {
-      if (this.$route.path !== '/products') {
-        this.$router.push('/products');
+      this.updateSearchQuery(this.searchQueryModel);
+      if (this.$route.name !== 'Products' || this.$route.query.q !== this.searchQueryModel) {
+        this.$router.push({ name: 'Products', query: { q: this.searchQueryModel } }).catch(err => {
+          if (err.name !== 'NavigationDuplicated') {
+            throw err;
+          }
+        });
       }
     },
     async logout() {
@@ -232,7 +238,15 @@ export default {
       this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1500 })
     }
   },
+  watch: {
+    '$route.query.q'(newQuery) {
+      this.searchQueryModel = newQuery || '';
+      this.updateSearchQuery(this.searchQueryModel);
+    }
+  },
   async created() {
+    this.searchQueryModel = this.$route.query.q || '';
+    this.updateSearchQuery(this.searchQueryModel);
     // Check if user is logged in on app start
     const token = localStorage.getItem('token')
     if (token) {

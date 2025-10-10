@@ -1,44 +1,26 @@
 <template>
   <div class="home">
-    <!-- Hero Carousel -->
-    <section class="hero-carousel">
-      <div id="heroCarousel" class="carousel slide" data-bs-ride="carousel">
-        <div class="carousel-indicators">
-          <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-          <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-          <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-        </div>
-        <div class="carousel-inner">
-          <div class="carousel-item active" style="background-image: url('https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80')">
-            <div class="carousel-caption d-none d-md-block">
-
-            </div>
-          </div>
-          <div class="carousel-item" style="background-image: url('https://images.unsplash.com/photo-1505740420928-5e560c06d30e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80')">
-            <div class="carousel-caption d-none d-md-block">
-
-            </div>
-          </div>
-          <div class="carousel-item" style="background-image: url('https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80')">
-            <div class="carousel-caption d-none d-md-block">
-
-
-            </div>
+    <!-- Category Grid -->
+    <section class="category-grid py-5">
+      <div class="container">
+        <h2 class="text-center mb-4">Categories</h2>
+        <div class="row row-cols-2 row-cols-md-4 g-4">
+          <div class="col" v-for="category in categories" :key="category.name">
+            <a href="#" @click.prevent="goToCategory(category.name)" class="text-decoration-none text-dark">
+              <div class="card text-center category-card h-100">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center">
+                  <i :class="['bi', category.icon, 'fs-1', 'mb-3', 'text-primary']"></i>
+                  <h6 class="mb-0">{{ category.name }}</h6>
+                </div>
+              </div>
+            </a>
           </div>
         </div>
-        <button class="carousel-control-prev" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
-          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-          <span class="visually-hidden">Previous</span>
-        </button>
-        <button class="carousel-control-next" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
-          <span class="carousel-control-next-icon" aria-hidden="true"></span>
-          <span class="visually-hidden">Next</span>
-        </button>
       </div>
     </section>
 
     <!-- Featured Products Section -->
-    <section class="featured-products py-5">
+    <section class="featured-products py-5 bg-light">
       <div class="container">
         <h2 class="text-center mb-4">Featured Products</h2>
         <Products :limit="4" />
@@ -46,7 +28,7 @@
     </section>
 
     <!-- Why Choose Us Section -->
-    <section class="why-choose-us bg-light py-5">
+    <section class="why-choose-us py-5">
       <div class="container">
         <h2 class="text-center mb-4">Why Choose Us?</h2>
         <div class="row">
@@ -78,23 +60,43 @@ export default {
   name: 'Home',
   components: {
     Products
+  },
+  data() {
+    return {
+      categories: [
+        { name: 'Laptop', icon: 'bi-laptop' },
+        { name: 'Mobile', icon: 'bi-phone' },
+        { name: 'Headphone', icon: 'bi-headphones' },
+        { name: 'Speaker', icon: 'bi-speaker' },
+        { name: 'Watch', icon: 'bi-watch' },
+        { name: 'Camera', icon: 'bi-camera' },
+        { name: 'Appliances', icon: 'bi-house' },
+        { name: 'Computing & Displays', icon: 'bi-display' }
+      ]
+    }
+  },
+  methods: {
+    goToCategory(category) {
+      this.$router.push({ name: 'Products', query: { category } });
+    }
   }
 }
 </script>
 
 <style scoped>
-.hero-carousel .carousel-item {
-  height: 60vh;
-  min-height: 400px;
-  background-size: cover;
-  background-position: center;
+.category-grid .category-card {
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  border: 1px solid #e9ecef;
 }
 
-.hero-carousel .carousel-caption {
-  top: 50%;
-  transform: translateY(-50%);
-  bottom: auto;
-  padding: 2rem;
-  border-radius: 0.5rem;
+.category-grid .category-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  border-color: #0d6efd;
+}
+
+.featured-products {
+  background-color: #f8f9fa;
 }
 </style>

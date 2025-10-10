@@ -1,17 +1,6 @@
 <template>
   <div class="products">
-    <!-- Sale Banner and Search -->
-    <section v-if="!limit" class="py-5 text-center container">
-      <div class="row py-lg-5">
-        <div class="col-lg-6 col-md-8 mx-auto">
-
-          <div class="alert alert-warning" role="alert">
-            <h4 class="alert-heading">10/10 Ngày hội săn sale!</h4>
-            <p>Don't miss out on our biggest sale of the year!.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    
 
     <!-- Hero Section -->
     <section v-if="!limit" class="products-hero bg-gradient-primary text-white py-5">
@@ -313,7 +302,8 @@ export default {
       viewMode: 'grid',
       currentPage: 1,
       itemsPerPage: 9,
-      wishlistIds: []
+      wishlistIds: [],
+      searchQuery: ''
     }
   },
   computed: {
@@ -339,9 +329,7 @@ export default {
       if (this.searchQuery) {
         const query = this.searchQuery.toLowerCase()
         filtered = filtered.filter(product => 
-          product.name.toLowerCase().includes(query) || 
-          product.description.toLowerCase().includes(query) ||
-          (product.category && product.category.toLowerCase().includes(query))
+          product.name.toLowerCase().includes(query)
         )
       }
       
@@ -373,6 +361,12 @@ export default {
     }
   },
   async created() {
+    if (this.$route.query.category) {
+      this.selectedCategory = this.$route.query.category;
+    }
+    if (this.$route.query.q) {
+      this.searchQuery = this.$route.query.q;
+    }
     try {
       const response = await this.$http.get('/api/products')
       this.products = response.data
@@ -388,7 +382,7 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['addToCart']),
+    ...mapActions(['addToCart', 'updateSearchQuery']),
     handleAddToCart(product) {
       if (!product || product.stock === 0) return
       this.addToCart(product)
@@ -461,9 +455,18 @@ export default {
       this.searchQuery = ''
       this.sortBy = 'name'
       this.currentPage = 1
+      if (this.$route.query.q || this.$route.query.category) {
+        this.$router.push({ name: 'Products' });
+      }
     }
   },
   watch: {
+    '$route.query.category'(newCategory) {
+      this.selectedCategory = newCategory || '';
+    },
+    '$route.query.q'(newQuery) {
+      this.searchQuery = newQuery || '';
+    },
     selectedCategory() {
       this.currentPage = 1
     },

@@ -54,7 +54,7 @@ export default {
     this.loadWishlist()
     window.addEventListener('wishlist-updated', this.loadWishlist)
   },
-  beforeDestroy() {
+  beforeUnmount() {
     window.removeEventListener('wishlist-updated', this.loadWishlist)
   },
   methods: {
