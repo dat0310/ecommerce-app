@@ -92,7 +92,7 @@
                   <router-link to="/wishlist" class="dropdown-item d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center">
                       <i class="bi bi-heart me-2"></i>
-                      Wishlist
+                      ឵឵឵឵឵឵ ឵឵឵ ឵឵឵Wishlist
                     </div>
                     <span class="badge bg-danger ms-auto">{{ wishlistCount }}</span>
                   </router-link>

@@ -30,16 +30,7 @@
       <div class="container">
         <div class="row align-items-center">
           
-          <div class="col-lg-3 mb-3 mb-lg-0">
-            <select v-model="selectedCategory" class="form-select" data-aos="fade-up" data-aos-delay="100">
-              <option value="">All Categories</option>
-              <option v-for="category in categories" :key="category" :value="category">
-                {{ category }}
-              </option>
-            </select>
-          </div>
-          
-          <div class="col-lg-3 mb-3 mb-lg-0">
+          <div class="col-lg-3 ms-auto">
             <select v-model="sortBy" class="form-select" data-aos="fade-up" data-aos-delay="200">
               <option value="name">Sort by Name</option>
               <option value="price-low">Price: Low to High</option>
@@ -48,26 +39,7 @@
             </select>
           </div>
           
-          <div class="col-lg-2 text-lg-end">
-            <div class="btn-group" role="group" data-aos="fade-up" data-aos-delay="300">
-              <button 
-                type="button" 
-                class="btn btn-outline-primary"
-                :class="{ 'active': viewMode === 'grid' }"
-                @click="viewMode = 'grid'"
-              >
-                <i class="bi bi-grid-3x3-gap"></i>
-              </button>
-              <button 
-                type="button" 
-                class="btn btn-outline-primary"
-                :class="{ 'active': viewMode === 'list' }"
-                @click="viewMode = 'list'"
-              >
-                <i class="bi bi-list"></i>
-              </button>
-            </div>
-          </div>
+          
         </div>
       </div>
     </section>
@@ -307,7 +279,7 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['searchQuery']),
+    ...mapGetters(['searchQuery', 'isAuthenticated']),
     categories() {
       const categories = new Set()
       this.products.forEach(product => {
@@ -385,6 +357,14 @@ export default {
     ...mapActions(['addToCart', 'updateSearchQuery']),
     handleAddToCart(product) {
       if (!product || product.stock === 0) return
+      if (!this.isAuthenticated) {
+        this.$toast.error('Please log in to add items to cart.', {
+          position: 'top-right',
+          timeout: 3000
+        })
+        this.$router.push('/login')
+        return
+      }
       this.addToCart(product)
       this.$toast && this.$toast.success('Added to cart', {
         position: 'top-right',

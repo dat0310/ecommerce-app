@@ -58,17 +58,22 @@
               <div class="card-body p-0">
                 <div v-for="(item, index) in cartItems" :key="item._id" class="cart-item">
                   <div class="row g-0 align-items-center">
+                    <div class="col-md-1">
+                      <div class="cart-item-checkbox p-3">
+                        <input class="form-check-input" type="checkbox" :value="item._id" v-model="selectedIds" :id="`select-${item._id}`" />
+                      </div>
+                    </div>
                     <div class="col-md-2">
                       <div class="cart-item-image">
-                        <img 
-                          :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'" 
-                          :alt="item.name" 
+                        <img
+                          :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'"
+                          :alt="item.name"
                           class="img-fluid rounded"
                         >
                       </div>
                     </div>
                     
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                       <div class="cart-item-details p-3">
                         <h6 class="fw-bold mb-1">{{ item.name }}</h6>
                         <p class="text-muted mb-1 small">{{ item.category || 'Uncategorized' }}</p>
@@ -80,7 +85,7 @@
                           <i class="bi bi-star-fill"></i>
                           <small class="text-muted ms-1">(4.8)</small>
                         </div>
-                        <p class="text-primary fw-bold mb-0">${{ item.price }} each</p>
+                        <p class="text-primary fw-bold mb-0">${{ item.price }}</p>
                       </div>
                     </div>
                     
@@ -125,17 +130,14 @@
                     
                     <div class="col-md-1">
                       <div class="cart-item-actions p-3 text-end">
-                        <button 
-                          @click="removeItem(item._id)" 
-                          class="btn btn-outline-danger btn-sm"
+                        <button
+                          @click="removeItem(item._id)"
+                          class="btn btn-danger btn-sm"
                           title="Remove item"
                         >
                           <i class="bi bi-trash"></i>
                         </button>
                       </div>
-                    </div>
-                    <div class="select-checkbox position-absolute top-50 end-0 translate-middle-y pe-3">
-                      <input class="form-check-input" type="checkbox" :value="item._id" v-model="selectedIds" :id="`select-${item._id}`" />
                     </div>
                   </div>
                 </div>
@@ -225,11 +227,13 @@ export default {
   name: 'Cart',
   data() {
     return {
-      shippingCost: 5.99,
       selectedIds: []
     }
   },
   computed: {
+    shippingCost() {
+      return this.selectedIds.length > 0 ? 5.99 : 0
+    },
     ...mapGetters(['cartItems', 'cartItemCount', 'isAuthenticated']),
     selectedItems() {
       return this.cartItems.filter(i => this.selectedIds.includes(i._id))

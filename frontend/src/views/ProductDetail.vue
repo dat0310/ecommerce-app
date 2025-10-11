@@ -247,7 +247,7 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex'
+import { mapActions, mapGetters } from 'vuex'
 
 export default {
   name: 'ProductDetail',
@@ -260,6 +260,7 @@ export default {
     }
   },
   computed: {
+    ...mapGetters(['isAuthenticated']),
     shopDisplayName() {
       // try common fields; fallback to 'Unknown shop'
       return (
@@ -290,6 +291,14 @@ export default {
   methods: {
     ...mapActions(['addToCart']),
     async handleBuyNow() {
+      if (!this.isAuthenticated) {
+        this.$toast.error('Please log in to proceed with purchase.', {
+          position: 'top-right',
+          timeout: 3000
+        })
+        this.$router.push('/login')
+        return
+      }
       if (!this.product) return
       // Add to cart with selected quantity
       for (let i = 0; i < this.quantity; i++) {
@@ -299,6 +308,14 @@ export default {
       this.$router.push({ path: '/cart', query: { select: this.product._id } })
     },
     handleAddToCart() {
+      if (!this.isAuthenticated) {
+        this.$toast.error('Please log in to add items to cart.', {
+          position: 'top-right',
+          timeout: 3000
+        })
+        this.$router.push('/login')
+        return
+      }
       if (this.quantity < 1) {
         this.$toast.warning('Please select at least 1 item.', {
           position: 'top-right',

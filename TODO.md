@@ -1,0 +1,2 @@
+- [ ] Modify ProductDetail.vue: Add mapGetters(['isAuthenticated']), add authentication check to handleAddToCart and handleBuyNow methods
+- [ ] Modify Products.vue: Add mapGetters(['isAuthenticated']), add authentication check to handleAddToCart method
