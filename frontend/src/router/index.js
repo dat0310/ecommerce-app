@@ -6,6 +6,7 @@ import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Profile from '../views/Profile.vue'
 import Cart from '../views/Cart.vue'
+import Checkout from '../views/Checkout.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import SellerDashboard from '../views/SellerDashboard.vue'
 import Wishlist from '../views/Wishlist.vue'
@@ -49,6 +50,12 @@ const routes = [
     path: '/cart',
     name: 'Cart',
     component: Cart
+  },
+  {
+    path: '/checkout',
+    name: 'Checkout',
+    component: Checkout,
+    meta: { requiresAuth: true }
   },
   {
     path: '/admin',

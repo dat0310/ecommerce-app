@@ -62,15 +62,15 @@ const orderSchema = new mongoose.Schema({
     default: 'pending'
   },
   shippingAddress: {
-    street: String,
-    city: String,
-    state: String,
-    zipCode: String,
-    country: String
+    fullName: String,
+    phoneNumber: String,
+    cityDistrictWard: String,
+    streetBuildingHouse: String,
+    isDefault: Boolean
   },
   paymentMethod: {
     type: String,
-    enum: ['credit_card', 'paypal', 'stripe'],
+    enum: ['credit_card', 'paypal', 'stripe', 'cash_on_delivery'],
     required: true
   },
   paymentStatus: {

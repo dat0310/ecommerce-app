@@ -46,11 +46,10 @@ const userSchema = new mongoose.Schema({
   },
   addresses: [
     {
-      street: String,
-      city: String,
-      state: String,
-      zipCode: String,
-      country: String,
+      fullName: String,
+      phoneNumber: String,
+      cityDistrictWard: String,
+      streetBuildingHouse: String,
       isDefault: {
         type: Boolean,
         default: false

@@ -275,12 +275,14 @@ export default {
       })
     },
     proceedToCheckout() {
-      this.$toast.info('Checkout functionality will be implemented soon.', {
-        position: 'top-right',
-        timeout: 3000
-      })
-      // In a real application, you would redirect to a checkout page
-      // this.$router.push('/checkout')
+      if (this.selectedIds.length === 0) {
+        this.$toast.warning('Please select items to checkout.', {
+          position: 'top-right',
+          timeout: 3000
+        })
+        return
+      }
+      this.$router.push({ path: '/checkout', query: { items: this.selectedIds.join(',') } })
     }
   }
 }
