@@ -1,6 +1,8 @@
-# Checkout Update Tasks
+# TODO: Fix Session Expired Bug with Refresh Token Implementation
 
-- [x] Update order-service/server.js to add 'cash_on_delivery' to paymentMethod enum
-- [x] Create frontend/src/views/Checkout.vue component with payment options
-- [x] Update frontend/src/router/index.js to add /checkout route
-- [x] Update frontend/src/views/Cart.vue to redirect to /checkout with selected items
+## Tasks
+- [x] Update user-service/server.js: Add refresh token field to user schema, generate refresh tokens on login/register, create `/api/users/refresh-token` endpoint
+- [x] Update frontend/src/store/index.js: Add refresh token state/mutations/actions, update login/register to store refresh token
+- [x] Update frontend/src/main.js: Modify axios response interceptor to attempt token refresh on 401 before logging out
+- [x] Test token refresh flow and order placement after refresh
+- [x] Verify no infinite refresh loops

@@ -56,6 +56,10 @@ const userSchema = new mongoose.Schema({
       }
     }
   ],
+  refreshToken: {
+    type: String,
+    default: null
+  },
   phone: {
     type: String,
     trim: true
@@ -93,13 +97,25 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 // Generate JWT token method
 userSchema.methods.generateAuthToken = function() {
   return jwt.sign(
-    { 
-      id: this._id, 
-      email: this.email, 
-      role: this.role 
+    {
+      id: this._id,
+      email: this.email,
+      role: this.role
     },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRE }
+    { expiresIn: process.env.JWT_EXPIRE || '24h' } // Default to 24 hours if not set
+  );
+};
+
+// Generate refresh token method
+userSchema.methods.generateRefreshToken = function() {
+  return jwt.sign(
+    {
+      id: this._id,
+      email: this.email
+    },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    { expiresIn: '7d' } // Refresh tokens last 7 days
   );
 };
 
@@ -172,8 +188,13 @@ app.post('/api/users/register', async (req, res) => {
 
     await user.save();
 
-    // Generate token
+    // Generate tokens
     const token = user.generateAuthToken();
+    const refreshToken = user.generateRefreshToken();
+
+    // Save refresh token to user
+    user.refreshToken = refreshToken;
+    await user.save();
 
     // Return user data without password
     const userResponse = {
@@ -191,6 +212,7 @@ app.post('/api/users/register', async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       token,
+      refreshToken,
       user: userResponse
     });
   } catch (error) {
@@ -220,8 +242,13 @@ app.post('/api/users/login', async (req, res) => {
       return res.status(400).json({ message: 'Account is deactivated.' });
     }
 
-    // Generate token
+    // Generate tokens
     const token = user.generateAuthToken();
+    const refreshToken = user.generateRefreshToken();
+
+    // Save refresh token to user
+    user.refreshToken = refreshToken;
+    await user.save();
 
     // Return user data without password
     const userResponse = {
@@ -239,6 +266,7 @@ app.post('/api/users/login', async (req, res) => {
     res.json({
       message: 'Login successful',
       token,
+      refreshToken,
       user: userResponse
     });
   } catch (error) {
@@ -523,24 +551,60 @@ app.patch('/api/users/:id/status', authenticateToken, requireRole(['admin']), as
   try {
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         isActive: req.body.isActive,
         updatedAt: Date.now()
       },
-      { 
+      {
         new: true,
-        runValidators: true 
+        runValidators: true
       }
     ).select('-password');
-    
+
     if (!user) return res.status(404).json({ message: 'User not found' });
-    
+
     res.json({
       message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
       user
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// Refresh token endpoint
+app.post('/api/users/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: 'Refresh token is required.' });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+
+    // Find user by ID and check if refresh token matches
+    const user = await User.findById(decoded.id);
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({ message: 'Invalid refresh token.' });
+    }
+
+    // Generate new tokens
+    const newToken = user.generateAuthToken();
+    const newRefreshToken = user.generateRefreshToken();
+
+    // Update refresh token in database
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    res.json({
+      message: 'Token refreshed successfully',
+      token: newToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (error) {
+    res.status(401).json({ message: 'Invalid refresh token.' });
   }
 });
 

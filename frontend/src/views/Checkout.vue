@@ -55,51 +55,44 @@
 
             <!-- Shipping Address -->
             <div class="card mt-4" data-aos="fade-up" data-aos-delay="100">
-              <div class="card-header d-flex justify-content-between align-items-center">
+              <div class="card-header">
                 <h5>Shipping Address</h5>
-                <button v-if="selectedAddressId !== 'new'" @click="addNewAddress" class="btn btn-outline-primary btn-sm">
-                  <i class="bi bi-plus-circle me-1"></i>Add New Address
-                </button>
               </div>
               <div class="card-body">
+                <!-- No Addresses Message -->
+                <div v-if="userAddresses.length === 0" class="alert alert-warning">
+                  <i class="bi bi-exclamation-triangle me-2"></i>
+                  No addresses available. Please add an address in your <router-link to="/profile">profile</router-link>.
+                </div>
                 <!-- Address Selection -->
-                <div v-if="userAddresses.length > 0" class="mb-3">
+                <div v-else class="mb-3">
                   <label class="form-label">Select Address</label>
-                  <select v-model="selectedAddressId" class="form-select">
+                  <select v-model="selectedAddressId" class="form-select" required>
                     <option value="">Choose an address...</option>
                     <option v-for="address in userAddresses" :key="address._id" :value="address._id">
                       {{ address.fullName }} - {{ address.cityDistrictWard }}, {{ address.streetBuildingHouse }}
                       <span v-if="address.isDefault" class="badge bg-primary ms-1">Default</span>
                     </option>
-                    <option value="new">Add New Address</option>
                   </select>
                 </div>
 
-                <!-- Address Form -->
-                <div class="row g-3">
+                <!-- Address Form (Read-only display) -->
+                <div v-if="selectedAddressId" class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label">Full Name</label>
-                    <input v-model="shippingAddress.fullName" type="text" class="form-control" required>
+                    <input v-model="shippingAddress.fullName" type="text" class="form-control" readonly>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label">Phone Number</label>
-                    <input v-model="shippingAddress.phoneNumber" type="text" class="form-control" required>
+                    <input v-model="shippingAddress.phoneNumber" type="text" class="form-control" readonly>
                   </div>
                   <div class="col-12">
                     <label class="form-label">City, District, Ward</label>
-                    <input v-model="shippingAddress.cityDistrictWard" type="text" class="form-control" required placeholder="e.g., Hanoi, Hoan Kiem, Phuc Tan">
+                    <input v-model="shippingAddress.cityDistrictWard" type="text" class="form-control" readonly>
                   </div>
                   <div class="col-12">
                     <label class="form-label">Street Name, Building, House No</label>
-                    <input v-model="shippingAddress.streetBuildingHouse" type="text" class="form-control" required placeholder="e.g., Tran Hung Dao Street, Building 5, House 10">
-                  </div>
-                  <div class="col-12">
-                    <div class="form-check">
-                      <input v-model="shippingAddress.isDefault" type="checkbox" class="form-check-input" id="defaultAddress">
-                      <label class="form-check-label" for="defaultAddress">
-                        Set as default address
-                      </label>
-                    </div>
+                    <input v-model="shippingAddress.streetBuildingHouse" type="text" class="form-control" readonly>
                   </div>
                 </div>
               </div>
@@ -168,7 +161,7 @@ export default {
     }
   },
   computed: {
-    ...mapGetters(['cartItems', 'currentUser']),
+    ...mapGetters(['cartItems', 'currentUser', 'isAuthenticated']),
     selectedIds() {
       return this.$route.query.items ? this.$route.query.items.split(',') : []
     },
@@ -182,23 +175,29 @@ export default {
       return this.currentUser?.addresses || []
     },
     canPlaceOrder() {
-      return this.shippingAddress.fullName && this.shippingAddress.phoneNumber &&
-             this.shippingAddress.cityDistrictWard && this.shippingAddress.streetBuildingHouse && this.paymentMethod
+      return this.selectedAddressId && this.paymentMethod && this.isAuthenticated
     }
   },
   watch: {
     selectedAddressId(newVal) {
-      if (newVal && newVal !== 'new') {
+      if (newVal) {
         const address = this.userAddresses.find(a => a._id === newVal)
         if (address) {
           this.shippingAddress = { ...address }
         }
-      } else if (newVal === 'new') {
-        this.clearAddressForm()
       }
     }
   },
   mounted() {
+    // Check if user is authenticated
+    if (!this.isAuthenticated) {
+      this.$toast.warning('Please log in to proceed with checkout.', {
+        position: 'top-right',
+      })
+      this.$router.push('/login?redirect=checkout')
+      return
+    }
+
     // Set default address if available
     const defaultAddress = this.userAddresses.find(a => a.isDefault)
     if (defaultAddress) {
@@ -206,19 +205,6 @@ export default {
     }
   },
   methods: {
-    addNewAddress() {
-      this.selectedAddressId = 'new'
-      this.clearAddressForm()
-    },
-    clearAddressForm() {
-      this.shippingAddress = {
-        fullName: '',
-        phoneNumber: '',
-        cityDistrictWard: '',
-        streetBuildingHouse: '',
-        isDefault: false
-      }
-    },
     async placeOrder() {
       try {
         const orderData = {
@@ -238,10 +224,20 @@ export default {
 
         const response = await axios.post('/api/orders', orderData)
         this.$toast.success('Order placed successfully!')
-        // Clear selected items from cart or redirect
+
+        // Remove placed items from cart
+        for (const item of this.selectedItems) {
+          this.$store.dispatch('removeFromCart', item._id)
+        }
+
+        // Redirect to profile
         this.$router.push('/profile')
       } catch (error) {
-        this.$toast.error('Failed to place order')
+        // 401 errors are now handled globally by the axios interceptor
+        // Only handle other errors here
+        if (error.response?.status !== 401) {
+          this.$toast.error(error.response?.data?.message || 'Failed to place order')
+        }
       }
     }
   }

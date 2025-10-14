@@ -14,6 +14,7 @@ const mapCartItemsFromApi = (items = []) => items.map(i => ({
 export default createStore({
   state: {
     token: localStorage.getItem('token') || '',
+    refreshToken: localStorage.getItem('refreshToken') || '',
     user: null,
     cart: JSON.parse(localStorage.getItem('cart')) || [],
     searchQuery: ''
@@ -32,10 +33,16 @@ export default createStore({
     SET_USER(state, user) {
       state.user = user
     },
+    SET_REFRESH_TOKEN(state, refreshToken) {
+      state.refreshToken = refreshToken
+      localStorage.setItem('refreshToken', refreshToken)
+    },
     CLEAR_AUTH(state) {
       state.token = ''
+      state.refreshToken = ''
       state.user = null
       localStorage.removeItem('token')
+      localStorage.removeItem('refreshToken')
       delete axios.defaults.headers.common['Authorization']
     },
     ADD_TO_CART(state, product) {
@@ -81,6 +88,7 @@ export default createStore({
       try {
         const response = await axios.post('/api/users/login', credentials)
         commit('SET_TOKEN', response.data.token)
+        commit('SET_REFRESH_TOKEN', response.data.refreshToken)
         commit('SET_USER', response.data.user)
         await dispatch('fetchCart')
         return response
@@ -92,6 +100,7 @@ export default createStore({
       try {
         const response = await axios.post('/api/users/register', userData)
         commit('SET_TOKEN', response.data.token)
+        commit('SET_REFRESH_TOKEN', response.data.refreshToken)
         commit('SET_USER', response.data.user)
         await dispatch('fetchCart')
         return response
@@ -155,6 +164,26 @@ export default createStore({
     },
     updateSearchQuery({ commit }, query) {
       commit('SET_SEARCH_QUERY', query)
+    },
+    async refreshToken({ commit, state }) {
+      try {
+        if (!state.refreshToken) {
+          throw new Error('No refresh token available')
+        }
+
+        const response = await axios.post('/api/users/refresh-token', {
+          refreshToken: state.refreshToken
+        })
+
+        commit('SET_TOKEN', response.data.token)
+        commit('SET_REFRESH_TOKEN', response.data.refreshToken)
+
+        return response.data.token
+      } catch (error) {
+        // If refresh fails, logout user
+        commit('CLEAR_AUTH')
+        throw error
+      }
     }
   },
   getters: {
