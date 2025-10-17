@@ -221,18 +221,9 @@
                           <td>{{ order.products.length }} items</td>
                           <td>${{ order.totalAmount }}</td>
                           <td>
-                            <select 
-                              class="form-select form-select-sm"
-                              :value="order.status"
-                              @change="updateOrderStatus(order._id, $event.target.value)"
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="confirmed">Confirmed</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
+                            <span class="badge" :class="getStatusBadgeClass(order.status)">
+                              {{ order.status }}
+                            </span>
                           </td>
                           <td>
                             <span class="badge" :class="getPaymentBadgeClass(order.paymentStatus)">
@@ -509,16 +500,6 @@ export default {
         console.error('Error loading all products:', error)
       }
     },
-    async updateOrderStatus(orderId, status) {
-      try {
-        await axios.patch(`/api/orders/${orderId}/status`, { status })
-        await this.loadOrders()
-        this.$toast.success('Order status updated successfully')
-      } catch (error) {
-        console.error('Error updating order status:', error)
-        this.$toast.error('Failed to update order status')
-      }
-    },
     async approveProduct(productId) {
       try {
         await axios.patch(`/api/products/${productId}/status`, { status: 'approved' })
@@ -680,4 +661,3 @@ export default {
   color: white;
 }
 </style>
-

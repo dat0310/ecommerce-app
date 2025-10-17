@@ -436,7 +436,7 @@ const swaggerOptions = {
             required: true,
             content: { 'application/json': { schema: { type: 'object', properties: { productId: { type: 'string' }, quantity: { type: 'integer' } }, required: ['productId'] } } }
           },
-          responses: { '201': { description: 'Item added' } }
+          responses: { '201-': { description: 'Item added' } }
         }
       },
       '/api/cart/items/{productId}': {
@@ -475,33 +475,24 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
 app.use('/api/products', createProxyMiddleware({ 
   target: 'http://product-service:3001', 
   changeOrigin: true,
-  pathRewrite: {
-    '^/api/products': '/api/products'
-  }
 }));
 
 app.use('/api/users', createProxyMiddleware({ 
   target: 'http://user-service:3002', 
   changeOrigin: true,
-  pathRewrite: {
-    '^/api/users': '/api/users'
-  }
 }));
 
 app.use('/api/orders', createProxyMiddleware({ 
   target: 'http://order-service:3003', 
   changeOrigin: true,
   pathRewrite: {
-    '^/api/orders': '/api/orders'
+    '^/api/orders': '/orders' // or just '/' if the service expects paths like '/stats'
   }
 }));
 
 app.use('/api/cart', createProxyMiddleware({ 
   target: 'http://cart-service:3004', 
   changeOrigin: true,
-  pathRewrite: {
-    '^/api/cart': '/api/cart'
-  }
 }));
 
 // Health check endpoint

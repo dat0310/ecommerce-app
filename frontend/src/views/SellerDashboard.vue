@@ -15,7 +15,7 @@
               </div>
               <nav class="nav flex-column gap-2">
                 <a 
-                  class="nav-link seller-nav-link" 
+                  class="nav-link seller-nav-link"
                   :class="{ active: activeTab === 'dashboard' }"
                   @click="activeTab = 'dashboard'"
                   href="#"
@@ -24,7 +24,7 @@
                   <span>Dashboard</span>
                 </a>
                 <a 
-                  class="nav-link seller-nav-link" 
+                  class="nav-link seller-nav-link"
                   :class="{ active: activeTab === 'products' }"
                   @click="activeTab = 'products'"
                   href="#"
@@ -33,7 +33,7 @@
                   <span>My Products</span>
                 </a>
                 <a 
-                  class="nav-link seller-nav-link" 
+                  class="nav-link seller-nav-link"
                   :class="{ active: activeTab === 'add-product' }"
                   @click="activeTab = 'add-product'"
                   href="#"
@@ -42,7 +42,7 @@
                   <span>Add Product</span>
                 </a>
                 <a 
-                  class="nav-link seller-nav-link" 
+                  class="nav-link seller-nav-link"
                   :class="{ active: activeTab === 'orders' }"
                   @click="activeTab = 'orders'"
                   href="#"
@@ -144,7 +144,7 @@
                           <td>
                             <div class="d-flex align-items-center">
                               <img 
-                                :src="product.image || '/placeholder-product.jpg'" 
+                                :src="product.image || '/placeholder-product.jpg'"
                                 class="me-3" 
                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;"
                                 :alt="product.name"
@@ -216,8 +216,8 @@
                     <div v-for="product in myProducts" :key="product._id" class="col-md-6 col-lg-4 mb-3">
                       <div class="card">
                         <img 
-                          :src="product.image || '/placeholder-product.jpg'" 
-                          class="card-img-top" 
+                          :src="product.image || '/placeholder-product.jpg'"
+                          class="card-img-top"
                           style="height: 200px; object-fit: cover;"
                           :alt="product.name"
                         >
@@ -279,7 +279,7 @@
                           <label for="name" class="form-label">Product Name *</label>
                           <input 
                             type="text" 
-                            class="form-control" 
+                            class="form-control"
                             id="name"
                             v-model="productForm.name"
                             required
@@ -289,7 +289,7 @@
                           <label for="price" class="form-label">Price *</label>
                           <input 
                             type="number" 
-                            class="form-control" 
+                            class="form-control"
                             id="price"
                             v-model="productForm.price"
                             min="0"
@@ -301,7 +301,7 @@
                           <label for="stock" class="form-label">Stock Quantity *</label>
                           <input 
                             type="number" 
-                            class="form-control" 
+                            class="form-control"
                             id="stock"
                             v-model="productForm.stock"
                             min="0"
@@ -311,7 +311,7 @@
                         <div class="mb-3">
                           <label for="category" class="form-label">Category *</label>
                           <select 
-                            class="form-select" 
+                            class="form-select"
                             id="category"
                             v-model="productForm.category"
                             required
@@ -333,7 +333,7 @@
                         <div class="mb-3">
                           <label for="description" class="form-label">Description *</label>
                           <textarea 
-                            class="form-control" 
+                            class="form-control"
                             id="description"
                             v-model="productForm.description"
                             rows="4"
@@ -344,7 +344,7 @@
                           <label for="image" class="form-label">Image URL</label>
                           <input 
                             type="url" 
-                            class="form-control" 
+                            class="form-control"
                             id="image"
                             v-model="productForm.image"
                             placeholder="https://example.com/image.jpg"
@@ -353,7 +353,7 @@
                         <div v-if="productForm.image" class="mb-3">
                           <label class="form-label">Preview</label>
                           <img 
-                            :src="productForm.image" 
+                            :src="productForm.image"
                             class="img-fluid rounded"
                             style="max-height: 200px;"
                             :alt="productForm.name"
@@ -432,12 +432,29 @@
                             </div>
                           </td>
                           <td>
-                            <span class="badge" :class="getStatusBadgeClass(order.status)">
-                              {{ order.status }}
-                            </span>
+                            <select 
+                              class="form-select form-select-sm"
+                              :value="order.status"
+                              @change="updateOrderStatus(order._id, $event.target.value)"
+                              :disabled="order.status === 'pending'"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="processing">Processing</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="delivered">Delivered</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
                           </td>
                           <td>{{ formatDate(order.createdAt) }}</td>
                           <td>
+                            <button 
+                              v-if="order.status === 'pending'"
+                              class="btn btn-sm btn-success me-1"
+                              @click="acceptOrder(order._id)"
+                            >
+                              Accept
+                            </button>
                             <button 
                               class="btn btn-sm btn-outline-primary"
                               @click="viewOrderDetails(order)"
@@ -517,11 +534,8 @@ export default {
     },
     async loadMyOrders() {
       try {
-        const response = await axios.get('/api/orders')
-        // Filter orders that contain products from this seller
-        this.myOrders = response.data.filter(order => 
-          order.products.some(product => product.sellerId === this.$store.getters.currentUser.id)
-        )
+        const response = await axios.get('/api/orders/seller/my-orders')
+        this.myOrders = response.data
         this.calculateSellerRevenue()
       } catch (error) {
         console.error('Error loading my orders:', error)
@@ -596,11 +610,36 @@ export default {
         }
       }
     },
+    async updateOrderStatus(orderId, status) {
+      try {
+        await axios.patch(`/api/orders/${orderId}/status`, { status })
+        await this.loadMyOrders()
+        this.$toast.success('Order status updated successfully')
+      } catch (error) {
+        console.error('Error updating order status:', error)
+        this.$toast.error('Failed to update order status')
+      }
+    },
+    async acceptOrder(orderId) {
+      try {
+        await axios.patch(`/api/orders/${orderId}/accept`)
+        await this.loadMyOrders()
+        this.$toast.success('Order accepted successfully')
+      } catch (error) {
+        console.error('Error accepting order:', error)
+        this.$toast.error('Failed to accept order')
+      }
+    },
     getStatusBadgeClass(status) {
       const classes = {
         pending: 'bg-warning',
         approved: 'bg-success',
-        rejected: 'bg-danger'
+        rejected: 'bg-danger',
+        confirmed: 'bg-info',
+        processing: 'bg-primary',
+        shipped: 'bg-secondary',
+        delivered: 'bg-success',
+        cancelled: 'bg-danger'
       }
       return classes[status] || 'bg-secondary'
     },
@@ -708,4 +747,3 @@ export default {
   color: #495057;
 }
 </style>
-
