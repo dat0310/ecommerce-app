@@ -65,7 +65,7 @@
               <!-- Stats Cards -->
               <div class="row mb-4">
                 <div class="col-md-3 mb-3">
-                  <div class="card bg-info text-white">
+                  <div class="card bg-primary text-white">
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
@@ -78,27 +78,27 @@
                   </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                  <div class="card bg-warning text-white">
+                  <div class="card bg-info text-white">
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
-                          <h4>{{ pendingProducts.length }}</h4>
-                          <p class="mb-0">Pending Products</p>
+                          <h4>{{ orders.length }}</h4>
+                          <p class="mb-0">Total Orders</p>
                         </div>
-                        <i class="bi bi-hourglass-split fs-1"></i>
+                        <i class="bi bi-bag fs-1"></i>
                       </div>
                     </div>
                   </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                  <div class="card bg-primary text-white">
+                  <div class="card bg-warning text-white">
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
-                          <h4>{{ stats.totalOrders || 0 }}</h4>
-                          <p class="mb-0">Total Orders</p>
+                          <h4>{{ pendingProducts.length }}</h4>
+                          <p class="mb-0">Refund Requests</p>
                         </div>
-                        <i class="bi bi-bag fs-1"></i>
+                        <i class="bi bi-arrow-counterclockwise fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -108,10 +108,10 @@
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
-                          <h4>{{ stats.pendingOrders || 0 }}</h4>
-                          <p class="mb-0">Pending Orders</p>
+                          <h4>${{ (stats.totalRevenue || 0).toFixed(2) }}</h4>
+                          <p class="mb-0">Total Revenue</p>
                         </div>
-                        <i class="bi bi-clock fs-1"></i>
+                        <i class="bi bi-currency-dollar fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -207,7 +207,7 @@
                           <th>Order #</th>
                           <th>Customer</th>
                           <th>Products</th>
-                          <th>Total</th>
+                          <th>Total</th> 
                           <th>Status</th>
                           <th>Payment</th>
                           <th>Date</th>

@@ -562,7 +562,7 @@ export default {
     async loadOrders() {
       this.ordersLoading = true
       try {
-        const response = await this.$http.get('/api/orders/my-orders')
+        const response = await this.$http.get('/api/users/me/orders')
         this.orders = response.data
       } catch (error) {
         console.error('Error loading orders:', error)

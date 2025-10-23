@@ -35,19 +35,21 @@ const cartSchema = new mongoose.Schema({
 
 const Cart = mongoose.model('Cart', cartSchema);
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token and normalize req.user
 const authenticateToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
-    }
+    if (!token) return res.status(401).json({ error: { message: 'Access denied. No token provided.' } });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    req.user = {
+      id: decoded.id || decoded._id || decoded.userId,
+      email: decoded.email,
+      role: decoded.role || 'customer'
+    };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token is not valid.' });
+    res.status(401).json({ error: { message: 'Token is not valid.' } });
   }
 };
 
@@ -68,7 +70,7 @@ app.get('/api/cart', authenticateToken, async (req, res) => {
     const cart = await Cart.findOne({ userId: req.user.id });
     res.json(cart || { userId: req.user.id, items: [] });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: { message: error.message } });
   }
 });
 
@@ -105,7 +107,7 @@ app.put('/api/cart', authenticateToken, async (req, res) => {
 
     res.json(cart);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -143,7 +145,7 @@ app.post('/api/cart/items', authenticateToken, async (req, res) => {
 
     res.status(201).json(cart);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -174,7 +176,7 @@ app.patch('/api/cart/items/:productId', authenticateToken, async (req, res) => {
 
     res.json(cart);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -197,7 +199,7 @@ app.delete('/api/cart/items/:productId', authenticateToken, async (req, res) => 
 
     res.json(cart);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -212,13 +214,19 @@ app.delete('/api/cart', authenticateToken, async (req, res) => {
 
     res.json(cart || { userId: req.user.id, items: [] });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: { message: error.message } });
   }
 });
 
 // Health
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', service: 'cart-service' });
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: { message: err.message || 'Internal server error' } });
 });
 
 const PORT = process.env.PORT || 3004;

@@ -116,8 +116,10 @@
                     Stripe
                   </label>
                 </div>
-                <div v-if="paymentMethod === 'stripe'" class="mt-3 p-3 border rounded">
-                  <p>Stripe payment form would be here.</p>
+                <div v-if="paymentMethod === 'stripe'" class="mt-3">
+                  <!-- Stripe Card Element will be mounted here -->
+                  <div id="card-element" class="p-3 border rounded"></div>
+                  <div id="card-errors" role="alert" class="text-danger mt-2"></div>
                   <!-- Placeholder for Stripe Elements -->
                 </div>
               </div>
@@ -144,6 +146,17 @@
 <script>
 import { mapGetters } from 'vuex'
 import axios from 'axios'
+import { loadStripe } from '@stripe/stripe-js'
+
+// Load publishable key from environment variable. Configure VUE_APP_STRIPE_PUBLISHABLE in your environment.
+const stripePublishableKey = process.env.VUE_APP_STRIPE_PUBLISHABLE || '';
+// If no publishable key is provided, keep stripePromise as null so callers can detect missing configuration.
+let stripePromise = null;
+if (stripePublishableKey) {
+  stripePromise = loadStripe(stripePublishableKey);
+} else {
+  stripePromise = null;
+}
 
 export default {
   name: 'Checkout',
@@ -157,7 +170,9 @@ export default {
         cityDistrictWard: '',
         streetBuildingHouse: '',
         isDefault: false
-      }
+      },
+      stripe: null,
+      cardElement: null,
     }
   },
   computed: {
@@ -175,7 +190,10 @@ export default {
       return this.currentUser?.addresses || []
     },
     canPlaceOrder() {
-      return this.selectedAddressId && this.paymentMethod && this.isAuthenticated
+      if (this.paymentMethod === 'stripe') {
+        return this.selectedAddressId && this.cardElement && this.isAuthenticated;
+      }
+      return this.selectedAddressId && this.paymentMethod && this.isAuthenticated;
     }
   },
   watch: {
@@ -185,10 +203,28 @@ export default {
         if (address) {
           this.shippingAddress = { ...address }
         }
+      } else {
+        this.shippingAddress = {
+          fullName: '',
+          phoneNumber: '',
+          cityDistrictWard: '',
+          streetBuildingHouse: '',
+          isDefault: false
+        }
+      }
+    },
+    async paymentMethod(newVal) {
+      if (newVal === 'stripe' && !this.stripe) {
+        await this.setupStripe();
+      } else if (newVal !== 'stripe' && this.cardElement) {
+        if (this.cardElement && typeof this.cardElement.destroy === 'function') {
+          this.cardElement.destroy();
+        }
+        this.cardElement = null;
       }
     }
   },
-  mounted() {
+  async mounted() {
     // Check if user is authenticated
     if (!this.isAuthenticated) {
       this.$toast.warning('Please log in to proceed with checkout.', {
@@ -203,10 +239,77 @@ export default {
     if (defaultAddress) {
       this.selectedAddressId = defaultAddress._id
     }
+
+    if (this.paymentMethod === 'stripe') {
+      await this.setupStripe();
+    }
   },
   methods: {
-    async placeOrder() {
+    async setupStripe() {
+      if (this.cardElement) return;
+      // Ensure publishable key is configured
+      if (!stripePromise) {
+        this.$toast.error('Stripe publishable key is not configured. Please set VUE_APP_STRIPE_PUBLISHABLE.', { position: 'top-right' });
+        return;
+      }
+
+      // Await the loader promise and ensure it resolved to a Stripe instance
       try {
+        this.stripe = await stripePromise;
+      } catch (err) {
+        this.$toast.error('Failed to initialize Stripe. Check the publishable key.', { position: 'top-right' });
+        console.error('Stripe initialization error:', err);
+        return;
+      }
+
+      if (!this.stripe || typeof this.stripe.elements !== 'function') {
+        this.$toast.error('Stripe is not available. Please verify your publishable key.', { position: 'top-right' });
+        return;
+      }
+
+      const elements = this.stripe.elements();
+      this.cardElement = elements.create('card', {
+        style: {
+          base: {
+            color: '#32325d',
+            fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+            fontSmoothing: 'antialiased',
+            fontSize: '16px',
+            '::placeholder': {
+              color: '#aab7c4'
+            }
+          },
+          invalid: {
+            color: '#fa755a',
+            iconColor: '#fa755a'
+          }
+        }
+      });
+
+      // Use a timeout to ensure the element is in the DOM
+      setTimeout(() => {
+        if (document.getElementById('card-element')) {
+          this.cardElement.mount('#card-element');
+          this.cardElement.on('change', (event) => {
+            const displayError = document.getElementById('card-errors');
+            if (event.error) {
+              displayError.textContent = event.error.message;
+            } else {
+              displayError.textContent = '';
+            }
+          });
+        }
+      }, 0);
+    },
+    async placeOrder() {
+      if (this.paymentMethod === 'stripe') {
+        await this.handleStripePayment();
+      } else {
+        await this.handleCashOnDelivery();
+      }
+    },
+    async createOrder(paymentIntentId = null) {
+       try {
         const orderData = {
           products: this.selectedItems.map(item => ({
             productId: item._id,
@@ -219,11 +322,12 @@ export default {
           totalAmount: this.totalAmount,
           shippingAddress: this.shippingAddress,
           paymentMethod: this.paymentMethod,
-          paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed' // Assume stripe completes
+          paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed',
+          paymentIntentId: paymentIntentId
         }
 
-        const response = await axios.post('/api/orders', orderData)
-        this.$toast.success('Order placed successfully!')
+        await axios.post('/api/orders', orderData)
+        this.$toast.success('Order placed successfully!', { position: 'top-right' });
 
         // Remove placed items from cart
         for (const item of this.selectedItems) {
@@ -231,13 +335,49 @@ export default {
         }
 
         // Redirect to profile
-        this.$router.push('/profile')
+        this.$router.push('/profile');
       } catch (error) {
         // 401 errors are now handled globally by the axios interceptor
         // Only handle other errors here
         if (error.response?.status !== 401) {
-          this.$toast.error(error.response?.data?.message || 'Failed to place order')
+          this.$toast.error(error.response?.data?.message || 'Failed to place order', { position: 'top-right' });
         }
+      }
+    },
+    async handleCashOnDelivery() {
+      await this.createOrder();
+    },
+    async handleStripePayment() {
+      if (!this.stripe || !this.cardElement) {
+        this.$toast.error('Stripe is not ready yet.', { position: 'top-right' });
+        return;
+      }
+
+      try {
+        // 1. Create a PaymentIntent on your server
+  const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
+          amount: this.totalAmount * 100 // Amount in cents
+        });
+
+        // 2. Confirm the card payment
+        const { paymentIntent, error } = await this.stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: this.cardElement,
+            billing_details: {
+              name: this.shippingAddress.fullName,
+            },
+          }
+        });
+
+        if (error) {
+          this.$toast.error(error.message, { position: 'top-right' });
+        } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+          // 3. If payment is successful, create the order in your database
+          // use backend enum value 'completed' when saving order
+          await this.createOrder(paymentIntent.id);
+        }
+      } catch (err) {
+        this.$toast.error(err.response?.data?.message || 'Payment failed. Please try again.', { position: 'top-right' });
       }
     }
   }

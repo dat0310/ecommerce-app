@@ -73,7 +73,7 @@
                 <li>
                   <router-link to="/profile" class="dropdown-item d-flex align-items-center">
                     <i class="bi bi-person me-2"></i>
-                    Profilee
+                    Profile
                   </router-link>
                 </li>
                 <li v-if="isAdmin">

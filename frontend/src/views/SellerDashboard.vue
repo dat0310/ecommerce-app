@@ -412,21 +412,21 @@
                           <td>{{ order.userEmail }}</td>
                           <td>
                             <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === $store.getters.currentUser.id">
+                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
                                 {{ product.productName }}
                               </span>
                             </div>
                           </td>
                           <td>
                             <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === $store.getters.currentUser.id">
+                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
                                 {{ product.quantity }}
                               </span>
                             </div>
                           </td>
                           <td>
                             <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === $store.getters.currentUser.id">
+                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
                                 ${{ (product.price * product.quantity).toFixed(2) }}
                               </span>
                             </div>
@@ -542,7 +542,7 @@ export default {
       }
     },
     calculateSellerRevenue() {
-      const sellerId = this.$store.getters.currentUser.id
+  const sellerId = this.$store.getters.currentUser && this.$store.getters.currentUser.id
       let total = 0
       for (const order of this.myOrders) {
         if (order.paymentStatus !== 'completed') continue
@@ -656,7 +656,7 @@ export default {
     },
     viewOrderDetails(order) {
       const sellerProducts = order.products.filter(product => 
-        product.sellerId === this.$store.getters.currentUser.id
+  product.sellerId === (this.$store.getters.currentUser && this.$store.getters.currentUser.id)
       )
       
       let details = `Order #${order.orderNumber}\n`

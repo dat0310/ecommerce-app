@@ -76,20 +76,22 @@ const productSchema = new mongoose.Schema({
 
 const Product = mongoose.model('Product', productSchema);
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token and normalize req.user
 const authenticateToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
-    }
+    if (!token) return res.status(401).json({ error: { message: 'Access denied. No token provided.' } });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    // Normalize shape: ensure id, email, role
+    req.user = {
+      id: decoded.id || decoded._id || decoded.userId,
+      email: decoded.email,
+      role: decoded.role || 'customer'
+    };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token is not valid.' });
+    res.status(401).json({ error: { message: 'Token is not valid.' } });
   }
 };
 
@@ -218,26 +220,26 @@ app.post('/api/products', authenticateToken, requireRole(['seller']), async (req
   }
 });
 
-// Update product (seller who owns it or admin)
-app.put('/api/products/:id', authenticateToken, async (req, res) => {
+// Partial update product (seller who owns it or admin)
+app.patch('/api/products/:id', authenticateToken, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
     
     // Check if user can update this product
     if (req.user.role !== 'admin' && product.sellerId !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied. You can only update your own products.' });
+      return res.status(403).json({ error: { message: 'Access denied. You can only update your own products.' } });
     }
-    
+
     req.body.updatedAt = Date.now();
     const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { 
       new: true,
       runValidators: true 
     });
-    
+
     res.json(updatedProduct);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -249,13 +251,13 @@ app.delete('/api/products/:id', authenticateToken, async (req, res) => {
     
     // Check if user can delete this product
     if (req.user.role !== 'admin' && product.sellerId !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied. You can only delete your own products.' });
+      return res.status(403).json({ error: { message: 'Access denied. You can only delete your own products.' } });
     }
-    
+
     await Product.findByIdAndDelete(req.params.id);
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: { message: error.message } });
   }
 });
 
@@ -266,7 +268,7 @@ app.patch('/api/products/:id/status', authenticateToken, requireRole(['admin']),
     const validStatuses = ['pending', 'approved', 'rejected'];
     
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status specified.' });
+      return res.status(400).json({ error: { message: 'Invalid status specified.' } });
     }
     
     const product = await Product.findByIdAndUpdate(
@@ -285,8 +287,14 @@ app.patch('/api/products/:id/status', authenticateToken, requireRole(['admin']),
       product
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: { message: err.message || 'Internal server error' } });
 });
 
 const PORT = process.env.PORT || 3001;

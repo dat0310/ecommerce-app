@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const axios = require('axios'); // To communicate with other services
 require('dotenv').config();
 
 const app = express();
@@ -121,26 +122,25 @@ userSchema.methods.generateRefreshToken = function() {
 
 const User = mongoose.model('User', userSchema);
 
-// Middleware to verify JWT token
+// Middleware to verify JWT token and normalize req.user
 const authenticateToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
-    if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
-    }
+    if (!token) return res.status(401).json({ error: { message: 'Access denied. No token provided.' } });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user) {
-      return res.status(401).json({ message: 'Token is not valid.' });
-    }
+    if (!user) return res.status(401).json({ error: { message: 'Token is not valid.' } });
 
-    req.user = user;
+    req.user = {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      profile: user // keep profile available if needed
+    };
     next();
   } catch (error) {
-    res.status(401).json({ message: 'Token is not valid.' });
+    res.status(401).json({ error: { message: 'Token is not valid.' } });
   }
 };
 
@@ -274,39 +274,33 @@ app.post('/api/users/login', async (req, res) => {
   }
 });
 
-// Get current user profile
-app.get('/api/users/profile', authenticateToken, async (req, res) => {
+// Get current user profile (me)
+app.get('/api/users/me', authenticateToken, async (req, res) => {
   try {
-    res.json(req.user);
+    // return normalized profile
+    const profile = req.user.profile || { id: req.user.id, email: req.user.email, role: req.user.role };
+    res.json({ id: req.user.id, email: req.user.email, role: req.user.role, profile });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: { message: error.message } });
   }
 });
 
-// Update user profile
-app.put('/api/users/profile', authenticateToken, async (req, res) => {
+// Partial update current user profile (me)
+app.patch('/api/users/me', authenticateToken, async (req, res) => {
   try {
     // Don't allow password update through this route
-    if (req.body.password) {
-      delete req.body.password;
-    }
+    if (req.body.password) delete req.body.password;
 
     req.body.updatedAt = Date.now();
     const user = await User.findByIdAndUpdate(
-      req.user._id,
+      req.user.id,
       req.body,
-      { 
-        new: true,
-        runValidators: true 
-      }
+      { new: true, runValidators: true }
     ).select('-password');
 
-    res.json({
-      message: 'Profile updated successfully',
-      user
-    });
+    res.json({ message: 'Profile updated successfully', user });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -324,39 +318,23 @@ app.get('/api/users', authenticateToken, requireRole(['admin']), async (req, res
 app.get('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(404).json({ error: { message: 'User not found' } });
     res.json(user);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ error: { message: error.message } });
   }
 });
 
-// Update user by ID (admin only)
-app.put('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
+// Partial update user by ID (admin only)
+app.patch('/api/users/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    // Don't allow password update through this route
-    if (req.body.password) {
-      delete req.body.password;
-    }
-
+    if (req.body.password) delete req.body.password;
     req.body.updatedAt = Date.now();
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { 
-        new: true,
-        runValidators: true 
-      }
-    ).select('-password');
-
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    
-    res.json({
-      message: 'User updated successfully',
-      user
-    });
+    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }).select('-password');
+    if (!user) return res.status(404).json({ error: { message: 'User not found' } });
+    res.json({ message: 'User updated successfully', user });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
 });
 
@@ -394,8 +372,14 @@ app.put('/api/users/change-password', authenticateToken, async (req, res) => {
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ error: { message: error.message } });
   }
+});
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: { message: err.message || 'Internal server error' } });
 });
 
 // Add address
@@ -493,6 +477,33 @@ app.delete('/api/users/addresses/:addressId', authenticateToken, async (req, res
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+
+// Get user's orders ("My Purchase")
+app.get('/api/users/me/orders', authenticateToken, async (req, res) => {
+  try {
+    console.log('Fetching orders for user:', req.user.id);
+    // The order service URL should be in your .env file
+    const orderServiceUrl = process.env.ORDER_SERVICE_URL;
+    if (!orderServiceUrl) {
+      console.error('ORDER_SERVICE_URL is not defined in the environment variables.');
+      return res.status(500).json({ message: 'Service configuration error.' });
+    }
+
+    // Forward the request to the order service to get orders for the current user.
+    // We pass the authorization header to allow the order service to authenticate the user.
+    const response = await axios.get(`${orderServiceUrl}/api/orders/user/${req.user.id}`, {
+      headers: {
+        'Authorization': req.header('Authorization')
+      }
+    });
+
+    console.log('Orders fetched successfully for user:', req.user.id);
+    res.json(response.data);
+  } catch (error) {
+    console.error('Error fetching orders for user:', req.user.id, error.message);
+    res.status(error.response?.status || 500).json({ message: error.response?.data?.message || 'Error fetching orders.' });
   }
 });
 

@@ -8,6 +8,18 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 
+// Example proxy setup: forward /api/* to respective services in docker network
+app.use('/api/products', createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001', changeOrigin: true, pathRewrite: {'^/api/products': '/api/products'} }));
+app.use('/api/users', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true, pathRewrite: {'^/api/users': '/api/users'} }));
+app.use('/api/cart', createProxyMiddleware({ target: process.env.CART_SERVICE_URL || 'http://cart-service:3004', changeOrigin: true, pathRewrite: {'^/api/cart': '/api/cart'} }));
+app.use('/api/orders', createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL || 'http://order-service:3003', changeOrigin: true, pathRewrite: {'^/api/orders': '/api/orders'} }));
+app.use('/api/payments', createProxyMiddleware({ target: process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3005', changeOrigin: true, pathRewrite: {'^/api/payments': '/api/payments'} }));
+app.use('/api/my-purchases', createProxyMiddleware({ target: process.env.MY_PURCHASE_SERVICE_URL || 'http://my-purchase-service:3006', changeOrigin: true, pathRewrite: {'^/api/my-purchases': '/'} }));
+app.use('/api/vouchers', createProxyMiddleware({ target: process.env.VOUCHER_SERVICE_URL || 'http://voucher-service:3007', changeOrigin: true, pathRewrite: {'^/api/vouchers': '/'} }));
+app.use('/api/coins', createProxyMiddleware({ target: process.env.SHOPHUBCOIN_SERVICE_URL || 'http://shophubcoin-service:3008', changeOrigin: true, pathRewrite: {'^/api/coins': '/'} }));
+app.use('/api/users/me/orders', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true }));
+
+
 // Swagger configuration
 const swaggerOptions = {
   definition: {
@@ -23,8 +35,8 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Development server'
+        url: 'http://localhost:3000/api',
+        description: 'Development server base path for APIs'
       }
     ],
     components: {
@@ -456,6 +468,55 @@ const swaggerOptions = {
           parameters: [ { name: 'productId', in: 'path', required: true, schema: { type: 'string' } } ],
           responses: { '200': { description: 'Item removed' } }
         }
+      },
+      '/api/payments/create-payment-intent': {
+        post: {
+          tags: ['Payments'],
+          summary: 'Create payment intent',
+          description: 'Create a Stripe payment intent for processing payments',
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['amount'],
+                  properties: {
+                    amount: {
+                      type: 'number',
+                      description: 'Payment amount in cents',
+                      example: 1000
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Payment intent created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      clientSecret: {
+                        type: 'string',
+                        description: 'Stripe client secret for the payment intent'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '400': {
+              description: 'Bad request - Invalid amount'
+            },
+            '500': {
+              description: 'Internal server error'
+            }
+          }
+        }
       }
     }
   },
@@ -484,14 +545,18 @@ app.use('/api/users', createProxyMiddleware({
 
 app.use('/api/orders', createProxyMiddleware({ 
   target: 'http://order-service:3003', 
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/orders': '/orders' // or just '/' if the service expects paths like '/stats'
-  }
+  changeOrigin: true
 }));
 
 app.use('/api/cart', createProxyMiddleware({ 
   target: 'http://cart-service:3004', 
+  changeOrigin: true,
+}));
+
+// Use localhost for payment-service in local development
+const paymentServiceTarget = process.env.PAYMENT_SERVICE_TARGET || 'http://localhost:3005';
+app.use('/api/payments', createProxyMiddleware({ 
+  target: paymentServiceTarget, 
   changeOrigin: true,
 }));
 

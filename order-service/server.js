@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
@@ -107,13 +108,21 @@ const Order = mongoose.model('Order', orderSchema);
 const authenticateToken = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
     if (!token) {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+
+    // Forward to the user service to get user details
+    const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
+    const userResponse = await axios.get(`${userServiceUrl}/api/users/me`, {
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    req.user = userResponse.data; 
     next();
   } catch (error) {
     res.status(401).json({ message: 'Token is not valid.' });
@@ -168,24 +177,17 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Get orders by user ID (admin or user themselves)
 router.get('/user/:userId', authenticateToken, async (req, res) => {
   try {
+    console.log('Fetching orders for user:', req.params.userId);
     // Check if user can view these orders
     if (req.user.role !== 'admin' && req.params.userId !== req.user.id) {
       return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
     }
     
     const orders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
+    console.log('Orders fetched successfully for user:', req.params.userId);
     res.json(orders);
   } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get current user's orders
-router.get('/my-orders', authenticateToken, async (req, res) => {
-  try {
-    const orders = await Order.find({ userId: req.user.id }).sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
+    console.error('Error fetching orders for user:', req.params.userId, error.message);
     res.status(500).json({ message: error.message });
   }
 });
@@ -203,14 +205,17 @@ router.get('/seller/my-orders', authenticateToken, requireRole(['seller']), asyn
 // Create a new order (customers only)
 router.post('/', authenticateToken, requireRole(['customer']), async (req, res) => {
   try {
+    // Map Stripe 'succeeded' to 'completed' for paymentStatus
+    let paymentStatus = req.body.paymentStatus;
+    if (paymentStatus === 'succeeded') paymentStatus = 'completed';
     const orderData = {
       ...req.body,
+      paymentStatus,
       userId: req.user.id,
       userEmail: req.user.email,
       orderNumber: generateOrderNumber(),
       updatedAt: Date.now()
     };
-    
     const order = new Order(orderData);
     await order.save();
     res.status(201).json(order);
@@ -313,13 +318,12 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'seller']),
 // Update payment status (admin only)
 router.patch('/:id/payment-status', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const { paymentStatus } = req.body;
+    let { paymentStatus } = req.body;
     const validStatuses = ['pending', 'completed', 'failed', 'refunded'];
-    
+    if (paymentStatus === 'succeeded') paymentStatus = 'completed';
     if (!validStatuses.includes(paymentStatus)) {
       return res.status(400).json({ message: 'Invalid payment status specified.' });
     }
-    
     const order = await Order.findByIdAndUpdate(
       req.params.id,
       { 
@@ -329,7 +333,6 @@ router.patch('/:id/payment-status', authenticateToken, requireRole(['admin']), a
       { new: true }
     );
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    
     res.json({
       message: `Payment status updated to ${paymentStatus}`,
       order
@@ -387,7 +390,14 @@ router.get('/stats', authenticateToken, requireRole(['admin']), async (req, res)
   }
 });
 
+// Mount orders router under unified /api/orders path
 app.use('/api/orders', router);
+
+// Centralized error handler
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(err.status || 500).json({ error: { message: err.message || 'Internal server error' } });
+});
 
 const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => {
