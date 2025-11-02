@@ -50,6 +50,15 @@
                   <i class="bi bi-people me-3"></i>
                   <span>Users</span>
                 </a>
+                <a 
+                  class="nav-link admin-nav-link" 
+                  :class="{ active: activeTab === 'vouchers' }"
+                  @click="activeTab = 'vouchers'"
+                  href="#"
+                >
+                  <i class="bi bi-ticket-percent me-3"></i>
+                  <span>Vouchers</span>
+                </a>
               </nav>
             </div>
           </div>
@@ -406,6 +415,89 @@
                 </div>
               </div>
             </div>
+
+            <!-- Vouchers Management -->
+            <div v-if="activeTab === 'vouchers'" class="vouchers-management">
+              <h2 class="mb-4">Vouchers Management</h2>
+
+              <div class="card mb-4">
+                <div class="card-header">
+                  <h5 class="mb-0">Create New Voucher</h5>
+                </div>
+                <div class="card-body">
+                  <form @submit.prevent="createVoucher">
+                    <div class="row">
+                      <div class="col-md-4">
+                        <div class="mb-3">
+                          <label for="voucherCode" class="form-label">Voucher Code</label>
+                          <input type="text" class="form-control" id="voucherCode" v-model="newVoucher.code" required>
+                        </div>
+                      </div>
+                      <div class="col-md-3">
+                        <div class="mb-3">
+                          <label for="discountType" class="form-label">Discount Type</label>
+                          <select class="form-select" id="discountType" v-model="newVoucher.discountType">
+                            <option value="percentage">Percentage</option>
+                            <option value="fixed">Fixed</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="col-md-3">
+                        <div class="mb-3">
+                          <label for="discountValue" class="form-label">Discount Value</label>
+                          <input type="number" class="form-control" id="discountValue" v-model="newVoucher.discountValue" required>
+                        </div>
+                      </div>
+                      <div class="col-md-2">
+                        <div class="mb-3">
+                          <label for="expiryDate" class="form-label">Expiry Date</label>
+                          <input type="date" class="form-control" id="expiryDate" v-model="newVoucher.expiryDate" required>
+                        </div>
+                      </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Voucher</button>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0">Existing Vouchers</h5>
+                </div>
+                <div class="card-body">
+                  <div v-if="vouchers.length === 0" class="text-center py-4">
+                    <p class="text-muted">No vouchers found</p>
+                  </div>
+                  <div v-else class="table-responsive">
+                    <table class="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Code</th>
+                          <th>Type</th>
+                          <th>Value</th>
+                          <th>Expiry Date</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="voucher in vouchers" :key="voucher._id">
+                          <td>{{ voucher.code }}</td>
+                          <td>{{ voucher.discountType }}</td>
+                          <td>{{ voucher.discountValue }}</td>
+                          <td>{{ formatDate(voucher.expiryDate) }}</td>
+                          <td>
+                            <span class="badge" :class="voucher.isActive ? 'bg-success' : 'bg-danger'">
+                              {{ voucher.isActive ? 'Active' : 'Inactive' }}
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -428,7 +520,14 @@ export default {
       pendingProducts: [],
       users: [],
       sellers: [],
-      allProducts: []
+      allProducts: [],
+      vouchers: [],
+      newVoucher: {
+        code: '',
+        discountType: 'percentage',
+        discountValue: null,
+        expiryDate: ''
+      }
     }
   },
   computed: {
@@ -453,7 +552,8 @@ export default {
           this.loadOrders(),
           this.loadPendingProducts(),
           this.loadUsers(),
-          this.loadAllProducts()
+          this.loadAllProducts(),
+          this.loadVouchers()
         ])
       } catch (error) {
         console.error('Error loading dashboard data:', error)
@@ -577,7 +677,30 @@ export default {
     formatDate(date) {
       return new Date(date).toLocaleDateString()
     },
-    
+    async createVoucher() {
+      try {
+        await axios.post('/api/vouchers', this.newVoucher)
+        this.loadVouchers()
+        this.newVoucher = {
+          code: '',
+          discountType: 'percentage',
+          discountValue: null,
+          expiryDate: ''
+        }
+        this.$toast.success('Voucher created successfully')
+      } catch (error) {
+        console.error('Error creating voucher:', error)
+        this.$toast.error('Failed to create voucher')
+      }
+    },
+    async loadVouchers() {
+      try {
+        const response = await axios.get('/api/vouchers')
+        this.vouchers = response.data
+      } catch (error) {
+        console.error('Error loading vouchers:', error)
+      }
+    }
   }
 }
 </script>

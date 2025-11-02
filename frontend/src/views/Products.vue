@@ -274,8 +274,7 @@ export default {
       viewMode: 'grid',
       currentPage: 1,
       itemsPerPage: 9,
-      wishlistIds: [],
-      searchQuery: ''
+      wishlistIds: []
     }
   },
   computed: {

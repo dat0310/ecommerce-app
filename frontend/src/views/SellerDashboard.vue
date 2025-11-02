@@ -558,7 +558,7 @@ export default {
       this.saving = true
       try {
         if (this.editingProduct) {
-          await axios.put(`/api/products/${this.editingProduct._id}`, this.productForm)
+          await axios.patch(`/api/products/${this.editingProduct._id}`, this.productForm)
           this.$toast.success('Product updated successfully')
         } else {
           await axios.post('/api/products', this.productForm)

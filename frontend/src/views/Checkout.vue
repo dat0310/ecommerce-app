@@ -326,7 +326,12 @@ export default {
           paymentIntentId: paymentIntentId
         }
 
-        await axios.post('/api/orders', orderData)
+        const token = localStorage.getItem('token');
+        await axios.post('/api/orders', orderData, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
         this.$toast.success('Order placed successfully!', { position: 'top-right' });
 
         // Remove placed items from cart

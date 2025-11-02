@@ -276,10 +276,9 @@ app.post('/api/users/login', async (req, res) => {
 
 // Get current user profile (me)
 app.get('/api/users/me', authenticateToken, async (req, res) => {
-  try {
-    // return normalized profile
-    const profile = req.user.profile || { id: req.user.id, email: req.user.email, role: req.user.role };
-    res.json({ id: req.user.id, email: req.user.email, role: req.user.role, profile });
+  try { 
+    const { profile, ...user } = req.user;
+    res.json(user);
   } catch (error) {
     res.status(500).json({ error: { message: error.message } });
   }
@@ -356,7 +355,7 @@ app.put('/api/users/change-password', authenticateToken, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     // Find user with password
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Verify current password
@@ -385,7 +384,7 @@ app.use((err, req, res, next) => {
 // Add address
 app.post('/api/users/addresses', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user.id);
     
     // If this is the first address, set it as default
     if (user.addresses.length === 0) {
@@ -415,7 +414,7 @@ app.post('/api/users/addresses', authenticateToken, async (req, res) => {
 // Update address
 app.put('/api/users/addresses/:addressId', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user.id);
     const addressIndex = user.addresses.findIndex(
       addr => addr._id.toString() === req.params.addressId
     );
@@ -450,8 +449,7 @@ app.put('/api/users/addresses/:addressId', authenticateToken, async (req, res) =
 
 // Delete address
 app.delete('/api/users/addresses/:addressId', authenticateToken, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
+const user = await User.findById(req.user.id);
     const addressIndex = user.addresses.findIndex(
       addr => addr._id.toString() === req.params.addressId
     );

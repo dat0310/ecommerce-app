@@ -589,7 +589,7 @@ export default {
       this.vouchersLoading = true
       try {
         // Placeholder API call
-        const response = await this.$http.get('/api/users/vouchers')
+        const response = await this.$http.get('/api/vouchers')
         this.vouchers = response.data
       } catch (error) {
         console.error('Error loading vouchers:', error)
@@ -605,7 +605,7 @@ export default {
     async loadCoins() {
       try {
         // Placeholder API call
-        const response = await this.$http.get('/api/users/coins')
+        const response = await this.$http.get('/api/coins')
         this.coins = response.data.coins
         this.dailyClaimed = response.data.dailyClaimed
       } catch (error) {

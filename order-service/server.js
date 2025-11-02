@@ -15,6 +15,12 @@ mongoose.connect(process.env.MONGODB_URI, {
   useUnifiedTopology: true,
 });
 
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function() {
+  console.log("Connected to MongoDB");
+});
+
 // Order Schema
 const orderSchema = new mongoose.Schema({
   userId: {
@@ -136,6 +142,8 @@ const requireRole = (roles) => {
       return res.status(401).json({ message: 'Authentication required.' });
     }
     
+        console.log('req.user:', req.user);
+    console.log('req.user.role:', req.user.role);
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
     }
@@ -146,6 +154,15 @@ const requireRole = (roles) => {
 
 // Routes
 const router = express.Router();
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  if (mongoose.connection.readyState === 1) {
+    res.json({ status: 'OK', message: 'Order service is running and connected to MongoDB' });
+  } else {
+    res.status(500).json({ status: 'Error', message: 'Order service is not connected to MongoDB' });
+  }
+});
 
 // Get all orders (admin only)
 router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
@@ -164,7 +181,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     if (!order) return res.status(404).json({ message: 'Order not found' });
     
     // Check if user can view this order
-    if (req.user.role !== 'admin' && order.userId !== req.user.id) {
+    if (req.user.role !== 'admin' && order.userId !== req.user._id) {
       return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
     }
     
@@ -179,7 +196,7 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
   try {
     console.log('Fetching orders for user:', req.params.userId);
     // Check if user can view these orders
-    if (req.user.role !== 'admin' && req.params.userId !== req.user.id) {
+    if (req.user.role !== 'admin' && req.params.userId !== req.user._id) {
       return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
     }
     
@@ -195,15 +212,16 @@ router.get('/user/:userId', authenticateToken, async (req, res) => {
 // Get seller's orders
 router.get('/seller/my-orders', authenticateToken, requireRole(['seller']), async (req, res) => {
   try {
-    const orders = await Order.find({ 'products.sellerId': req.user.id }).sort({ createdAt: -1 });
+    const orders = await Order.find({ 'products.sellerId': req.user._id }).sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Create a new order (customers only)
-router.post('/', authenticateToken, requireRole(['customer']), async (req, res) => {
+// Create a new order (authenticated users)
+router.post('/', authenticateToken, async (req, res) => {
+  console.log('Creating a new order...');
   try {
     // Map Stripe 'succeeded' to 'completed' for paymentStatus
     let paymentStatus = req.body.paymentStatus;
@@ -258,7 +276,7 @@ router.patch('/:id/accept', authenticateToken, requireRole(['seller']), async (r
 
     // If the user is a seller, check if they are associated with this order
     if (req.user.role === 'seller') {
-      const isSellerForOrder = order.products.some(product => product.sellerId === req.user.id);
+      const isSellerForOrder = order.products.some(product => product.sellerId === req.user._id);
       if (!isSellerForOrder) {
         return res.status(403).json({ message: 'Access denied. You can only accept orders containing your products.' });
       }
@@ -296,7 +314,7 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'seller']),
 
     // If the user is a seller, check if they are associated with this order
     if (req.user.role === 'seller') {
-      const isSellerForOrder = order.products.some(product => product.sellerId === req.user.id);
+      const isSellerForOrder = order.products.some(product => product.sellerId === req.user._id);
       if (!isSellerForOrder) {
         return res.status(403).json({ message: 'Access denied. You can only update status for orders containing your products.' });
       }
@@ -386,6 +404,7 @@ router.get('/stats', authenticateToken, requireRole(['admin']), async (req, res)
       totalRevenue: totalRevenue[0]?.total || 0
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 });

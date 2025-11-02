@@ -110,7 +110,7 @@ export default createStore({
     },
     async fetchUserProfile({ commit }) {
       try {
-        const response = await axios.get('/api/users/profile')
+        const response = await axios.get('/api/users/me')
         commit('SET_USER', response.data)
         return response
       } catch (error) {
