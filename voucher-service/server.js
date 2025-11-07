@@ -123,6 +123,37 @@ router.post('/', authenticateToken, requireRole(['admin']), async (req, res) => 
 
 app.use('/api/vouchers', router);
 
+// Apply voucher (public endpoint for checkout)
+router.post('/apply', async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ message: 'Voucher code is required.' });
+    }
+
+    const voucher = await Voucher.findOne({
+      code: code.toUpperCase(),
+      isActive: true,
+      expiryDate: { $gte: new Date() }
+    });
+
+    if (!voucher) {
+      return res.status(404).json({ message: 'Invalid or expired voucher code.' });
+    }
+
+    res.json({
+      code: voucher.code,
+      discountType: voucher.discountType,
+      discountValue: voucher.discountValue,
+      expiryDate: voucher.expiryDate
+    });
+  } catch (error) {
+    console.error('Error applying voucher:', error);
+    res.status(500).json({ message: 'Failed to apply voucher.' });
+  }
+});
+
 // Get vouchers statistics (admin only)
 router.get('/stats', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {

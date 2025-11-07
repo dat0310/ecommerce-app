@@ -41,9 +41,46 @@
                 <h5>Order Summary</h5>
               </div>
               <div class="card-body">
+                <!-- Voucher Input -->
+                <div class="mb-3">
+                  <label class="form-label">Have a voucher?</label>
+                  <div class="input-group">
+                    <input
+                      v-model="voucherCode"
+                      type="text"
+                      class="form-control"
+                      placeholder="Enter voucher code"
+                      :disabled="voucherApplied"
+                    >
+                    <button
+                      @click="applyVoucher"
+                      class="btn btn-outline-primary"
+                      :disabled="!voucherCode.trim() || voucherApplied"
+                    >
+                      {{ voucherApplied ? 'Applied' : 'Apply' }}
+                    </button>
+                  </div>
+                  <div v-if="voucherApplied" class="text-success small mt-1">
+                    <i class="bi bi-check-circle me-1"></i>
+                    Voucher "{{ appliedVoucher.code }}" applied ({{ appliedVoucher.discountType === 'percentage' ? appliedVoucher.discountValue + '%' : '$' + appliedVoucher.discountValue }} off)
+                  </div>
+                  <div v-if="voucherError" class="text-danger small mt-1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    {{ voucherError }}
+                  </div>
+                </div>
+
                 <div v-for="item in selectedItems" :key="item._id" class="d-flex justify-content-between mb-2">
                   <span>{{ item.name }} (x{{ item.quantity }})</span>
                   <span>${{ (item.price * item.quantity).toFixed(2) }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                  <span>Shipping</span>
+                  <span>${{ shippingCost.toFixed(2) }}</span>
+                </div>
+                <div v-if="discountAmount > 0" class="d-flex justify-content-between mb-2 text-success">
+                  <span>Discount</span>
+                  <span>-${{ discountAmount.toFixed(2) }}</span>
                 </div>
                 <hr>
                 <div class="d-flex justify-content-between fw-bold">
@@ -173,6 +210,10 @@ export default {
       },
       stripe: null,
       cardElement: null,
+      voucherCode: '',
+      voucherApplied: false,
+      voucherError: '',
+      appliedVoucher: null,
     }
   },
   computed: {
@@ -183,8 +224,22 @@ export default {
     selectedItems() {
       return this.cartItems.filter(item => this.selectedIds.includes(item._id))
     },
-    totalAmount() {
+    shippingCost() {
+      return 5.99
+    },
+    subtotal() {
       return this.selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
+    },
+    discountAmount() {
+      if (!this.voucherApplied || !this.appliedVoucher) return 0
+      if (this.appliedVoucher.discountType === 'percentage') {
+        return this.subtotal * (this.appliedVoucher.discountValue / 100)
+      } else {
+        return Math.min(this.appliedVoucher.discountValue, this.subtotal)
+      }
+    },
+    totalAmount() {
+      return this.subtotal + this.shippingCost - this.discountAmount
     },
     userAddresses() {
       return this.currentUser?.addresses || []
@@ -323,7 +378,13 @@ export default {
           shippingAddress: this.shippingAddress,
           paymentMethod: this.paymentMethod,
           paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed',
-          paymentIntentId: paymentIntentId
+          paymentIntentId: paymentIntentId,
+          voucher: this.voucherApplied ? {
+            code: this.appliedVoucher.code,
+            discountType: this.appliedVoucher.discountType,
+            discountValue: this.appliedVoucher.discountValue,
+            discountAmount: this.discountAmount
+          } : null
         }
 
         const token = localStorage.getItem('token');
@@ -351,6 +412,29 @@ export default {
     },
     async handleCashOnDelivery() {
       await this.createOrder();
+    },
+    async applyVoucher() {
+      if (!this.voucherCode.trim()) return
+
+      try {
+        const token = localStorage.getItem('token')
+        const response = await axios.post('/api/vouchers/apply', {
+          code: this.voucherCode.trim()
+        }, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+
+        this.appliedVoucher = response.data.voucher
+        this.voucherApplied = true
+        this.voucherError = ''
+        this.$toast.success('Voucher applied successfully!', { position: 'top-right' })
+      } catch (error) {
+        this.voucherError = error.response?.data?.message || 'Invalid voucher code'
+        this.voucherApplied = false
+        this.appliedVoucher = null
+      }
     },
     async handleStripePayment() {
       if (!this.stripe || !this.cardElement) {

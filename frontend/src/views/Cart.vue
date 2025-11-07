@@ -160,14 +160,8 @@
                   <span class="fw-semibold">${{ selectedSubtotal.toFixed(2) }}</span>
                 </div>
                 
-                <div class="summary-item d-flex justify-content-between mb-3">
-                  <span>Shipping:</span>
-                  <span class="fw-semibold text-success">${{ shippingCost.toFixed(2) }}</span>
-                </div>
-                
-                                
                 <hr class="my-4">
-                
+
                 <div class="summary-total d-flex justify-content-between mb-4">
                   <h5 class="fw-bold mb-0">Total:</h5>
                   <h4 class="fw-bold text-primary mb-0">${{ totalAmount.toFixed(2) }}</h4>
@@ -245,7 +239,7 @@ export default {
       return this.selectedItems.reduce((t, i) => t + (i.price * i.quantity), 0)
     },
     totalAmount() {
-      return this.selectedSubtotal + this.shippingCost
+      return this.selectedSubtotal
     }
   },
   mounted() {

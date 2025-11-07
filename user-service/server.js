@@ -449,7 +449,8 @@ app.put('/api/users/addresses/:addressId', authenticateToken, async (req, res) =
 
 // Delete address
 app.delete('/api/users/addresses/:addressId', authenticateToken, async (req, res) => {
-const user = await User.findById(req.user.id);
+  try {
+    const user = await User.findById(req.user.id);
     const addressIndex = user.addresses.findIndex(
       addr => addr._id.toString() === req.params.addressId
     );

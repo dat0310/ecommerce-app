@@ -1,11 +1,16 @@
-# TODO: Fix 404 on /api/payments/create-payment-intent
+# TODO: Update Voucher Application and Shipping Fee
 
-## Steps to Complete:
-- [x] Create payment-service directory structure
-- [x] Implement payment-service/server.js with Stripe PaymentIntent endpoint
-- [x] Create payment-service/package.json with required dependencies
-- [x] Create payment-service/Dockerfile
-- [x] Add payment-service to docker-compose.yml
-- [x] Update api-gateway/server.js with Swagger docs for payments endpoint
-- [x] Add payment-service dependency to api-gateway in docker-compose.yml
-- [ ] Test the implementation by running docker-compose up --build
+## Tasks
+- [x] Add `/api/vouchers/apply` endpoint in voucher-service/server.js to validate voucher codes
+- [x] Remove shipping cost from Cart.vue order summary
+- [x] Update Checkout.vue to add voucher input and apply functionality
+- [x] Add shipping cost to Checkout.vue order summary
+- [x] Restructure Checkout.vue order summary to show: product name, shipping, discount (if applied), divide line, total
+- [x] Update total calculations to include shipping and voucher discounts
+- [x] Include voucher details in order data when placing order
+
+## Testing
+- [ ] Test voucher application with valid codes
+- [ ] Test voucher application with invalid codes
+- [ ] Verify total calculations include shipping and discount properly
+- [ ] Test checkout flow with and without vouchers
