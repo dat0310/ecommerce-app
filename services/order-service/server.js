@@ -17,7 +17,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
-db.once('open', function() {
+db.once('open', function () {
   console.log("Connected to MongoDB");
 });
 
@@ -122,14 +122,21 @@ const authenticateToken = async (req, res, next) => {
 
     // Forward to the user service to get user details
     const userServiceUrl = process.env.USER_SERVICE_URL || 'http://user-service:3002';
-    const userResponse = await axios.get(`${userServiceUrl}/api/users/me`, {
+    try {
+      const userResponse = await axios.get(`${userServiceUrl}/api/users/me`, {
         headers: {
-            'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`
         }
-    });
+      });
+      // User Service returns { id, email, role, ... }
+      req.user = userResponse.data;
+      next();
+    } catch (apiError) {
+      console.error('Error contacting user service:', apiError.message);
+      // Fallback if user service is unreachable but token is valid
+      return res.status(500).json({ message: 'Error verifying user identity with User Service.' });
+    }
 
-    req.user = userResponse.data; 
-    next();
   } catch (error) {
     res.status(401).json({ message: 'Token is not valid.' });
   }
@@ -141,13 +148,11 @@ const requireRole = (roles) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication required.' });
     }
-    
-        console.log('req.user:', req.user);
-    console.log('req.user.role:', req.user.role);
+
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
     }
-    
+
     next();
   };
 };
@@ -155,7 +160,7 @@ const requireRole = (roles) => {
 // Routes
 const router = express.Router();
 
-// Health check endpoint
+// 1. Health check (No auth required)
 router.get('/health', (req, res) => {
   if (mongoose.connection.readyState === 1) {
     res.json({ status: 'OK', message: 'Order service is running and connected to MongoDB' });
@@ -164,28 +169,58 @@ router.get('/health', (req, res) => {
   }
 });
 
-// Get all orders (admin only)
-router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+// 2. Specific GET Routes (MUST come before /:id)
+
+// Get orders statistics (admin only)
+router.get('/stats', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const orders = await Order.find().sort({ createdAt: -1 });
-    res.json(orders);
+    const totalOrders = await Order.countDocuments();
+    const pendingOrders = await Order.countDocuments({ status: 'pending' });
+    const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
+    const processingOrders = await Order.countDocuments({ status: 'processing' });
+    const shippedOrders = await Order.countDocuments({ status: 'shipped' });
+    const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
+    const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
+
+    const totalRevenue = await Order.aggregate([
+      { $match: { paymentStatus: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+    ]);
+
+    res.json({
+      totalOrders,
+      pendingOrders,
+      confirmedOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
+      cancelledOrders,
+      totalRevenue: totalRevenue[0]?.total || 0
+    });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// Get order by ID (admin or order owner)
-router.get('/:id', authenticateToken, async (req, res) => {
+// Get seller's orders
+router.get('/seller/my-orders', authenticateToken, requireRole(['seller']), async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
-    if (!order) return res.status(404).json({ message: 'Order not found' });
-    
-    // Check if user can view this order
-    if (req.user.role !== 'admin' && order.userId !== req.user._id) {
-      return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
-    }
-    
-    res.json(order);
+    // Current user ID from User Service (req.user.id)
+    const sellerId = req.user.id;
+
+    // Find orders containing at least one product from this seller
+    const orders = await Order.find({ 'products.sellerId': sellerId }).sort({ createdAt: -1 });
+
+    // Filter the products array in each order to ONLY show this seller's products
+    // This improves privacy so sellers don't see other sellers' items in a mixed cart.
+    const sellerOrders = orders.map(order => {
+      const orderObj = order.toObject();
+      orderObj.products = orderObj.products.filter(p => p.sellerId === sellerId);
+      return orderObj;
+    });
+
+    res.json(sellerOrders);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -194,25 +229,41 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Get orders by user ID (admin or user themselves)
 router.get('/user/:userId', authenticateToken, async (req, res) => {
   try {
-    console.log('Fetching orders for user:', req.params.userId);
     // Check if user can view these orders
-    if (req.user.role !== 'admin' && req.params.userId !== req.user._id) {
+    if (req.user.role !== 'admin' && req.params.userId !== req.user.id) {
       return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
     }
-    
+
     const orders = await Order.find({ userId: req.params.userId }).sort({ createdAt: -1 });
-    console.log('Orders fetched successfully for user:', req.params.userId);
     res.json(orders);
   } catch (error) {
-    console.error('Error fetching orders for user:', req.params.userId, error.message);
     res.status(500).json({ message: error.message });
   }
 });
 
-// Get seller's orders
-router.get('/seller/my-orders', authenticateToken, requireRole(['seller']), async (req, res) => {
+// Get orders by status (admin only)
+router.get('/status/:status', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
-    const orders = await Order.find({ 'products.sellerId': req.user._id }).sort({ createdAt: -1 });
+    const { status } = req.params;
+    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status specified.' });
+    }
+
+    const orders = await Order.find({ status }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// 3. General Collection Routes
+
+// Get all orders (admin only)
+router.get('/', authenticateToken, requireRole(['admin']), async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
     res.json(orders);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -226,10 +277,11 @@ router.post('/', authenticateToken, async (req, res) => {
     // Map Stripe 'succeeded' to 'completed' for paymentStatus
     let paymentStatus = req.body.paymentStatus;
     if (paymentStatus === 'succeeded') paymentStatus = 'completed';
+
     const orderData = {
       ...req.body,
       paymentStatus,
-      userId: req.user.id,
+      userId: req.user.id, // User Service uses 'id'
       userEmail: req.user.email,
       orderNumber: generateOrderNumber(),
       updatedAt: Date.now()
@@ -242,13 +294,50 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 });
 
+// 4. Parameterized Routes (/:id) - MUST be last for GET
+
+// Get order by ID (admin, seller, or order owner)
+router.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid Order ID format' });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+
+    const userId = req.user.id;
+
+    // Check permissions
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = order.userId === userId;
+    const isSellerForOrder = req.user.role === 'seller' && order.products.some(p => p.sellerId === userId);
+
+    if (!isAdmin && !isOwner && !isSellerForOrder) {
+      return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // If seller, maybe we should filter products?
+    // The frontend code expects full order to view details, but let's filter for better security if it is a seller
+    if (isSellerForOrder && !isAdmin && !isOwner) {
+      const orderObj = order.toObject();
+      orderObj.products = orderObj.products.filter(p => p.sellerId === userId);
+      return res.json(orderObj);
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Update an order (admin only)
 router.put('/:id', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     req.body.updatedAt = Date.now();
-    const order = await Order.findByIdAndUpdate(req.params.id, req.body, { 
+    const order = await Order.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
-      runValidators: true 
+      runValidators: true
     });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     res.json(order);
@@ -275,11 +364,10 @@ router.patch('/:id/accept', authenticateToken, requireRole(['seller']), async (r
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     // If the user is a seller, check if they are associated with this order
-    if (req.user.role === 'seller') {
-      const isSellerForOrder = order.products.some(product => product.sellerId === req.user._id);
-      if (!isSellerForOrder) {
-        return res.status(403).json({ message: 'Access denied. You can only accept orders containing your products.' });
-      }
+    const sellerId = req.user.id;
+    const isSellerForOrder = order.products.some(product => product.sellerId === sellerId);
+    if (!isSellerForOrder) {
+      return res.status(403).json({ message: 'Access denied. You can only accept orders containing your products.' });
     }
 
     if (order.status !== 'pending') {
@@ -304,7 +392,7 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'seller']),
   try {
     const { status } = req.body;
     const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
-    
+
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status specified.' });
     }
@@ -314,16 +402,17 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'seller']),
 
     // If the user is a seller, check if they are associated with this order
     if (req.user.role === 'seller') {
-      const isSellerForOrder = order.products.some(product => product.sellerId === req.user._id);
+      const sellerId = req.user.id;
+      const isSellerForOrder = order.products.some(product => product.sellerId === sellerId);
       if (!isSellerForOrder) {
         return res.status(403).json({ message: 'Access denied. You can only update status for orders containing your products.' });
       }
     }
-    
+
     order.status = status;
     order.updatedAt = Date.now();
     await order.save();
-    
+
     res.json({
       message: `Order status updated to ${status}`,
       order
@@ -344,7 +433,7 @@ router.patch('/:id/payment-status', authenticateToken, requireRole(['admin']), a
     }
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         paymentStatus,
         updatedAt: Date.now()
       },
@@ -357,55 +446,6 @@ router.patch('/:id/payment-status', authenticateToken, requireRole(['admin']), a
     });
   } catch (error) {
     res.status(400).json({ message: error.message });
-  }
-});
-
-// Get orders by status (admin only)
-router.get('/status/:status', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const { status } = req.params;
-    const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
-    
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status specified.' });
-    }
-    
-    const orders = await Order.find({ status }).sort({ createdAt: -1 });
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// Get orders statistics (admin only)
-router.get('/stats', authenticateToken, requireRole(['admin']), async (req, res) => {
-  try {
-    const totalOrders = await Order.countDocuments();
-    const pendingOrders = await Order.countDocuments({ status: 'pending' });
-    const confirmedOrders = await Order.countDocuments({ status: 'confirmed' });
-    const processingOrders = await Order.countDocuments({ status: 'processing' });
-    const shippedOrders = await Order.countDocuments({ status: 'shipped' });
-    const deliveredOrders = await Order.countDocuments({ status: 'delivered' });
-    const cancelledOrders = await Order.countDocuments({ status: 'cancelled' });
-    
-    const totalRevenue = await Order.aggregate([
-      { $match: { paymentStatus: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-    ]);
-    
-    res.json({
-      totalOrders,
-      pendingOrders,
-      confirmedOrders,
-      processingOrders,
-      shippedOrders,
-      deliveredOrders,
-      cancelledOrders,
-      totalRevenue: totalRevenue[0]?.total || 0
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: error.message });
   }
 });
 
