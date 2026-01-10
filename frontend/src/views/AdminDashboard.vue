@@ -477,6 +477,7 @@
                           <th>Value</th>
                           <th>Expiry Date</th>
                           <th>Status</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -489,6 +490,14 @@
                             <span class="badge" :class="voucher.isActive ? 'bg-success' : 'bg-danger'">
                               {{ voucher.isActive ? 'Active' : 'Inactive' }}
                             </span>
+                          </td>
+                          <td>
+                            <button 
+                              class="btn btn-sm btn-outline-danger"
+                              @click="deleteVoucher(voucher._id)"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       </tbody>
@@ -699,6 +708,17 @@ export default {
         this.vouchers = response.data
       } catch (error) {
         console.error('Error loading vouchers:', error)
+      }
+    },
+    async deleteVoucher(voucherId) {
+      if (!confirm('Are you sure you want to delete this voucher?')) return;
+      try {
+        await axios.delete(`/api/vouchers/${voucherId}`)
+        await this.loadVouchers()
+        this.$toast.success('Voucher deleted successfully')
+      } catch (error) {
+        console.error('Error deleting voucher:', error)
+        this.$toast.error('Failed to delete voucher')
       }
     }
   }
