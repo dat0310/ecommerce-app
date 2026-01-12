@@ -480,7 +480,7 @@ export default {
           this.user = { ...this.currentUser }
         } else {
           // Fetch user data if not in store
-          const response = await this.$http.get('/api/users/profile')
+          const response = await this.$http.get('/api/users/me')
           this.user = response.data
           this.$store.commit('SET_USER', response.data)
         }
@@ -497,7 +497,7 @@ export default {
       this.error = ''
 
       try {
-        const response = await this.$http.put('/api/users/profile', this.user)
+        const response = await this.$http.patch('/api/users/me', this.user)
         this.$store.commit('SET_USER', response.data.user)
         this.message = 'Profile updated successfully!'
       } catch (error) {
@@ -589,7 +589,7 @@ export default {
       this.vouchersLoading = true
       try {
         // Placeholder API call
-        const response = await this.$http.get('/api/vouchers')
+        const response = await this.$http.get('/api/vouchers/active')
         this.vouchers = response.data
       } catch (error) {
         console.error('Error loading vouchers:', error)
@@ -617,7 +617,7 @@ export default {
     },
     async claimDailyCoins() {
       try {
-        const response = await this.$http.post('/api/users/claim-daily-coins')
+        const response = await this.$http.post('/api/coins/claim-daily')
         this.coins = response.data.coins
         this.dailyClaimed = true
         alert('Daily coins claimed!')

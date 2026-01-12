@@ -105,6 +105,9 @@ services:
       - "3008:3008"
     networks:
       - ecommerce-network
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/coindb
+      - JWT_SECRET=supersecretjwtkey
 
   # API Gateway
   api-gateway:

@@ -409,7 +409,7 @@
                       <tbody>
                         <tr v-for="order in myOrders" :key="order._id">
                           <td>{{ order.orderNumber }}</td>
-                          <td>{{ order.userEmail }}</td>
+                          <td>{{ (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail }}</td>
                           <td>
                             <div v-for="product in order.products" :key="product.productId">
                               <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
@@ -660,7 +660,8 @@ export default {
       )
       
       let details = `Order #${order.orderNumber}\n`
-      details += `Customer: ${order.userEmail}\n`
+      const customerName = (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail
+      details += `Customer: ${customerName}\n`
       details += `Status: ${order.status}\n`
       details += `Date: ${this.formatDate(order.createdAt)}\n\n`
       details += `Your Products:\n`
