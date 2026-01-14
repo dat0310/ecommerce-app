@@ -272,7 +272,7 @@
                     <div v-for="product in pendingProducts" :key="product._id" class="col-md-6 col-lg-4 mb-3">
                       <div class="card">
                         <img 
-                          :src="product.image || '/placeholder-product.jpg'" 
+                          :src="product.image || 'https://via.placeholder.com/200'" 
                           class="card-img-top" 
                           style="height: 200px; object-fit: cover;"
                           :alt="product.name"
@@ -720,6 +720,10 @@ export default {
         console.error('Error deleting voucher:', error)
         this.$toast.error('Failed to delete voucher')
       }
+    },
+    getSellerProductCount(sellerId) {
+      if (!this.allProducts) return 0
+      return this.allProducts.filter(p => p.sellerId === sellerId).length
     }
   }
 }

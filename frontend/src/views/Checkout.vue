@@ -372,7 +372,8 @@ export default {
             sellerId: item.sellerId,
             sellerName: item.sellerName,
             quantity: item.quantity,
-            price: item.price
+            price: item.price,
+            image: item.image
           })),
           totalAmount: this.totalAmount,
           shippingAddress: this.shippingAddress,

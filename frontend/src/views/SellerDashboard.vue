@@ -144,7 +144,7 @@
                           <td>
                             <div class="d-flex align-items-center">
                               <img 
-                                :src="product.image || '/placeholder-product.jpg'"
+                                :src="product.image || 'https://via.placeholder.com/50'"
                                 class="me-3" 
                                 style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;"
                                 :alt="product.name"
@@ -216,7 +216,7 @@
                     <div v-for="product in myProducts" :key="product._id" class="col-md-6 col-lg-4 mb-3">
                       <div class="card">
                         <img 
-                          :src="product.image || '/placeholder-product.jpg'"
+                          :src="product.image || 'https://via.placeholder.com/200'"
                           class="card-img-top"
                           style="height: 200px; object-fit: cover;"
                           :alt="product.name"
@@ -392,79 +392,85 @@
                   <div v-if="myOrders.length === 0" class="text-center py-4">
                     <p class="text-muted">No orders found for your products</p>
                   </div>
-                  <div v-else class="table-responsive">
-                    <table class="table table-hover">
-                      <thead>
-                        <tr>
-                          <th>Order #</th>
-                          <th>Customer</th>
-                          <th>Product</th>
-                          <th>Quantity</th>
-                          <th>Total</th>
-                          <th>Status</th>
-                          <th>Date</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="order in myOrders" :key="order._id">
-                          <td>{{ order.orderNumber }}</td>
-                          <td>{{ (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail }}</td>
-                          <td>
-                            <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
-                                {{ product.productName }}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
-                                {{ product.quantity }}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            <div v-for="product in order.products" :key="product.productId">
-                              <span v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)">
-                                ${{ (product.price * product.quantity).toFixed(2) }}
-                              </span>
-                            </div>
-                          </td>
-                          <td>
-                            <select 
-                              class="form-select form-select-sm"
-                              :value="order.status"
-                              @change="updateOrderStatus(order._id, $event.target.value)"
-                              :disabled="order.status === 'pending'"
+                  <div v-else class="orders-list">
+                    <div v-for="order in myOrders" :key="order._id" class="card mb-3 border shadow-sm">
+                      <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                        <div class="d-flex align-items-center gap-2">
+                          <span class="fw-bold">{{ (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail }}</span>
+                          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" @click="viewOrderDetails(order)">
+                            <i class="bi bi-chat-dots"></i> Chat
+                          </button>
+                          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1" @click="viewOrderDetails(order)">
+                            <i class="bi bi-shop"></i> View Shop
+                          </button>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                          <span class="text-uppercase text-danger fw-bold">{{ getStatusDisplayText(order.status) }}</span>
+                        </div>
+                      </div>
+                      
+                      <div class="card-body p-0">
+                        <div v-for="product in order.products" :key="product.productId">
+                           <div v-if="product.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id)" class="d-flex p-3 border-bottom">
+                            <img 
+                              :src="product.image || getProductImage(product.productId)" 
+                              @error="$event.target.src = 'https://via.placeholder.com/80'"
+                              class="rounded me-3" 
+                              style="width: 80px; height: 80px; object-fit: cover;" 
+                              alt="Product Image"
                             >
-                              <option value="pending">Pending</option>
-                              <option value="confirmed">Confirmed</option>
-                              <option value="processing">Processing</option>
-                              <option value="shipped">Shipped</option>
-                              <option value="delivered">Delivered</option>
-                              <option value="cancelled">Cancelled</option>
-                            </select>
-                          </td>
-                          <td>{{ formatDate(order.createdAt) }}</td>
-                          <td>
-                            <button 
-                              v-if="order.status === 'pending'"
-                              class="btn btn-sm btn-success me-1"
-                              @click="acceptOrder(order._id)"
-                            >
-                              Accept
-                            </button>
-                            <button 
-                              class="btn btn-sm btn-outline-primary"
-                              @click="viewOrderDetails(order)"
-                            >
-                              View Details
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                            <div class="flex-grow-1">
+                              <h6 class="mb-1">{{ product.productName }}</h6>
+                              <p class="text-muted small mb-1">Quantity: x{{ product.quantity }}</p>
+                            </div>
+                            <div class="text-end">
+                              <div class="text-decoration-line-through text-muted small">{{ formatCurrency(product.price * 1.2) }}</div>
+                              <div class="text-danger fw-bold">{{ formatCurrency(product.price) }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="card-footer bg-white">
+                        <div class="d-flex justify-content-end align-items-center mb-3">
+                           <span class="me-2 text-muted">Order Total:</span>
+                           <h4 class="text-danger fw-bold mb-0">
+                             {{ formatCurrency(order.products.reduce((sum, p) => (p.sellerId === ($store.getters.currentUser && $store.getters.currentUser.id) ? sum + (p.price * p.quantity) : sum), 0)) }}
+                           </h4>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                           <div class="text-muted small">
+                             Order ID: {{ order.orderNumber }} <br>
+                             Date: {{ formatDate(order.createdAt) }}
+                           </div>
+                           <div class="d-flex gap-2">
+                              <select 
+                                class="form-select form-select-sm" 
+                                style="width: auto;"
+                                :value="order.status"
+                                @change="updateOrderStatus(order._id, $event.target.value)"
+                                :disabled="order.status === 'delivered' || order.status === 'cancelled'"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="processing">Processing</option>
+                                <option value="shipped">Shipped</option>
+                                <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+
+                              <button 
+                                v-if="order.status === 'pending'"
+                                class="btn btn-danger text-white px-4"
+                                @click="acceptOrder(order._id)"
+                              >
+                                Accept Order
+                              </button>
+                              <button class="btn btn-outline-secondary px-4">Contact Buyer</button>
+                           </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -653,6 +659,13 @@ export default {
     },
     formatDate(date) {
       return new Date(date).toLocaleDateString()
+    },
+    formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+    },
+    getProductImage(productId) {
+      const product = this.myProducts.find(p => p._id === productId);
+      return product ? (product.image || 'https://via.placeholder.com/80') : 'https://via.placeholder.com/80';
     },
     viewOrderDetails(order) {
       const sellerProducts = order.products.filter(product => 

@@ -246,29 +246,84 @@
           <div v-if="activeTab === 'purchase'">
             <h2 class="mb-4">My Purchase</h2>
 
-            <div v-if="ordersLoading" class="text-center">
-              <div class="spinner-border text-primary" role="status">
+            <div v-if="ordersLoading" class="text-center py-5">
+              <div class="spinner-border text-danger" role="status">
                 <span class="visually-hidden">Loading...</span>
               </div>
             </div>
 
-            <div v-else-if="orders.length === 0" class="text-center">
-              <p>No orders found.</p>
+            <div v-else-if="orders.length === 0" class="text-center py-5">
+              <p class="text-muted">No orders found.</p>
+              <router-link to="/" class="btn btn-danger">Start Shopping</router-link>
             </div>
 
-            <div v-else>
-              <div v-for="order in orders" :key="order._id" class="card mb-3 shadow">
-                <div class="card-body">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h5 class="card-title">Order #{{ order.orderNumber }}</h5>
-                      <p class="card-text">Status: <span :class="getStatusClass(order.status)">{{ order.status }}</span></p>
-                      <p class="card-text">Total: ${{ order.totalAmount }}</p>
-                      <p class="card-text">Date: {{ new Date(order.createdAt).toLocaleDateString() }}</p>
+            <div v-else class="orders-list">
+              <div v-for="order in orders" :key="order._id" class="card mb-3 border-0 shadow-sm">
+                <!-- Header -->
+                <div class="card-header bg-white border-bottom pt-3 pb-2">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="badge bg-danger rounded-1 px-1 me-1">Mall</span>
+                      <span class="fw-bold me-2">{{ order.products[0]?.sellerName || 'Shop Name' }}</span>
+                      
+                      <button class="btn btn-sm btn-danger text-white d-flex align-items-center gap-1 px-2" style="font-size: 0.8rem;">
+                        <i class="bi bi-chat-dots-fill"></i> Chat
+                      </button>
+                      <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 px-2" style="font-size: 0.8rem;">
+                        <i class="bi bi-shop"></i> View Shop
+                      </button>
                     </div>
-                    <button class="btn btn-outline-primary btn-sm" @click="viewOrderDetails(order)">
-                      View Details
-                    </button>
+                    <div class="text-uppercase text-danger fw-bold">
+                      {{ getStatusDisplayText(order.status) }}
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Body -->
+                <div class="card-body p-0">
+                  <div v-for="product in order.products" :key="product.productId" class="d-flex p-3 border-bottom bg-light bg-opacity-10">
+                    <img 
+                      :src="product.image || 'https://via.placeholder.com/80'" 
+                      @error="$event.target.src = 'https://via.placeholder.com/80'"
+                      class="rounded me-3" 
+                      style="width: 80px; height: 80px; object-fit: cover;" 
+                      alt="Product Image"
+                    >
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between">
+                        <div>
+                          <h6 class="mb-1 text-dark">{{ product.productName || product.name || 'Product Name' }}</h6>
+                          <div class="text-muted small mb-1">Variation: Default</div>
+                          <div class="text-dark small">x{{ product.quantity }}</div>
+                        </div>
+                        <div class="text-end">
+                          <div class="text-decoration-line-through text-muted small" v-if="product.originalPrice">{{ formatCurrency(product.price * 1.2) }}</div>
+                          <div class="text-danger fw-bold">{{ formatCurrency(product.price) }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="card-footer bg-white border-top-0 pt-3 pb-3">
+                  <div class="row align-items-center mb-4">
+                     <div class="col-12 text-end d-flex justify-content-end align-items-center">
+                       <span class="text-muted me-2">Order Total:</span>
+                       <span class="text-danger fs-4 fw-bold">{{ formatCurrency(order.totalAmount) }}</span>
+                     </div>
+                  </div>
+                  
+                  <div class="d-flex justify-content-between align-items-center">
+                      <div class="text-muted small">
+                        <span v-if="order.status === 'cancelled'">Cancelled by you</span>
+                        <span v-else>Order ID: {{ order.orderNumber }}</span>
+                      </div>
+                      <div class="d-flex gap-2">
+                         <button class="btn btn-danger text-white px-4 border-0 rounded-1">Buy Again</button>
+                         <button class="btn btn-outline-secondary px-3 rounded-1" @click="viewOrderDetails(order)">View Details</button>
+                         <button class="btn btn-outline-secondary px-3 rounded-1">Contact Seller</button>
+                      </div>
                   </div>
                 </div>
               </div>
@@ -293,7 +348,11 @@
               <div v-for="voucher in vouchers" :key="voucher._id" class="card mb-3 shadow">
                 <div class="card-body">
                   <h5 class="card-title">{{ voucher.code }}</h5>
-                  <p class="card-text">Discount: {{ voucher.discount }}%</p>
+                  <p class="card-text">
+                    Discount: 
+                    <span v-if="voucher.discountType === 'percentage'">{{ voucher.discountValue }}%</span>
+                    <span v-else>${{ voucher.discountValue }}</span>
+                  </p>
                   <p class="card-text">Expires: {{ new Date(voucher.expiryDate).toLocaleDateString() }}</p>
                 </div>
               </div>
@@ -564,10 +623,46 @@ export default {
       try {
         const response = await this.$http.get('/api/users/me/orders')
         this.orders = response.data
+        // Try to fetch images for old orders that lack them
+        this.fetchMissingImages()
       } catch (error) {
         console.error('Error loading orders:', error)
       } finally {
         this.ordersLoading = false
+      }
+    },
+    async fetchMissingImages() {
+      const productsToFetch = new Set()
+      
+      // Identify unique products with missing images
+      this.orders.forEach(order => {
+        order.products.forEach(p => {
+          if (!p.image) {
+            productsToFetch.add(p.productId)
+          }
+        })
+      })
+
+      // Fetch images for these products
+      for (const productId of productsToFetch) {
+        try {
+          const response = await this.$http.get(`/api/products/${productId}`)
+          const productImage = response.data.image
+          
+          if (productImage) {
+            // Update all instances in local state
+            this.orders.forEach(order => {
+              order.products.forEach(p => {
+                if (p.productId === productId && !p.image) {
+                  p.image = productImage
+                }
+              })
+            })
+          }
+        } catch (error) {
+          // Silent failure if product no longer exists
+          console.warn(`Could not fetch image for product ${productId}`)
+        }
       }
     },
     getStatusClass(status) {
@@ -595,13 +690,13 @@ export default {
         console.error('Error loading vouchers:', error)
         // For demo, set some sample vouchers
         this.vouchers = [
-          { _id: 1, code: 'SAVE10', discount: 10, expiryDate: '2024-12-31' },
-          { _id: 2, code: 'SAVE20', discount: 20, expiryDate: '2024-11-30' }
+          { _id: 1, code: 'SAVE10', discountType: 'percentage', discountValue: 10, expiryDate: '2024-12-31' },
+          { _id: 2, code: 'SAVE20', discountType: 'fixed', discountValue: 20, expiryDate: '2024-11-30' }
         ]
       } finally {
         this.vouchersLoading = false
       }
-    },
+        },
     async loadCoins() {
       try {
         // Placeholder API call
@@ -628,6 +723,22 @@ export default {
         this.dailyClaimed = true
         alert('Daily coins claimed!')
       }
+    },
+    getStatusDisplayText(status) {
+      const statusText = {
+        pending: 'Pending',
+        confirmed: 'Confirmed',
+        processing: 'Processing',
+        shipped: 'Shipped',
+        delivered: 'Delivered',
+        cancelled: 'Cancelled',
+        approved: 'Approved',
+        rejected: 'Rejected'
+      }
+      return statusText[status] || status
+    },
+    formatCurrency(value) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
     }
   }
 }
