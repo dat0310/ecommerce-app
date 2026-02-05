@@ -33,6 +33,7 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/userdb
       - JWT_SECRET=supersecretjwtkey
       - JWT_EXPIRE=7d
+      - ORDER_SERVICE_URL=http://order-service:3003
     depends_on:
       - mongo
     networks:
@@ -46,6 +47,7 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongo:27017/orderdb
       - JWT_SECRET=supersecretjwtkey
+      - USER_SERVICE_URL=http://user-service:3002
     depends_on:
       - mongo
     networks:

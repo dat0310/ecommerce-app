@@ -29,23 +29,64 @@ axios.interceptors.request.use(
   }
 );
 
+// Token refresh state management
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+// URLs that should NOT trigger token refresh on 401
+const authUrls = ['/api/users/refresh-token', '/api/users/login', '/api/users/register']
+
 // Axios response interceptor to handle 401 errors globally
 axios.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't retry for auth endpoints or if already retried
+    const isAuthUrl = authUrls.some(url => originalRequest.url?.includes(url))
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthUrl) {
+      if (isRefreshing) {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(token => {
+          originalRequest.headers['Authorization'] = `Bearer ${token}`
+          return axios(originalRequest)
+        }).catch(err => {
+          return Promise.reject(err)
+        })
+      }
+
       originalRequest._retry = true
+      isRefreshing = true
 
       try {
         // Attempt to refresh the token
         await store.dispatch('refreshToken')
+        const newToken = store.state.token
+
+        // Process queued requests
+        processQueue(null, newToken)
 
         // Retry the original request with the new token
-        originalRequest.headers['Authorization'] = `Bearer ${store.state.token}`
+        originalRequest.headers['Authorization'] = `Bearer ${newToken}`
         return axios(originalRequest)
       } catch (refreshError) {
+        // Process queued requests with error
+        processQueue(refreshError, null)
+
         // Refresh failed, logout and redirect to login
         store.dispatch('logoutUser')
         router.push('/login')
@@ -63,6 +104,8 @@ axios.interceptors.response.use(
           })
         }
         return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
       }
     }
 
