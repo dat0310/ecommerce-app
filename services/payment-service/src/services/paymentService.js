@@ -6,8 +6,11 @@ class PaymentService {
             throw new Error('Invalid amount');
         }
 
+        // Stripe requires the amount to be an integer (in cents)
+        const amountInCents = Math.round(amount);
+
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: amount,
+            amount: amountInCents,
             currency: 'usd',
             automatic_payment_methods: {
                 enabled: true,

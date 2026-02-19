@@ -83,7 +83,7 @@
             <div v-if="viewMode === 'grid'" class="card product-card h-100">
               <div class="position-relative overflow-hidden">
                 <img 
-                  :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'" 
+                  :src="(product.images && product.images[0]) || product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'" 
                   class="card-img-top" 
                   :alt="product.name" 
                   style="height: 250px; object-fit: cover;"
@@ -156,7 +156,7 @@
               <div class="row g-0">
                 <div class="col-md-3">
                   <img 
-                    :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'" 
+                    :src="(product.images && product.images[0]) || product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'" 
                     class="img-fluid rounded-start" 
                     :alt="product.name"
                     style="height: 200px; object-fit: cover; width: 100%;"
@@ -399,7 +399,7 @@ export default {
         items.splice(index, 1)
         this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
       } else {
-        const minimal = { _id: product._id, name: product.name, price: product.price, image: product.image || '' }
+        const minimal = { _id: product._id, name: product.name, price: product.price, image: (product.images && product.images[0]) || product.image || '' }
         items.push(minimal)
         this.$toast && this.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
       }

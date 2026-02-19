@@ -25,6 +25,32 @@ const productSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    images: [{
+        type: String
+    }],
+    variants: [{
+        name: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        options: [{
+            value: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            priceModifier: {
+                type: Number,
+                default: 0
+            },
+            stock: {
+                type: Number,
+                default: 0,
+                min: 0
+            }
+        }]
+    }],
     stock: {
         type: Number,
         required: true,

@@ -8,34 +8,37 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 
+// Proxy uploaded images to product-service
+app.use('/uploads', createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001', changeOrigin: true }));
+
 // Example proxy setup: forward /api/* to respective services in docker network
-app.use('/api/products', createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001', changeOrigin: true, pathRewrite: {'^/api/products': '/api/products'} }));
-app.use('/api/users', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true, pathRewrite: {'^/api/users': '/api/users'} }));
-app.use('/api/cart', createProxyMiddleware({ target: process.env.CART_SERVICE_URL || 'http://cart-service:3004', changeOrigin: true, pathRewrite: {'^/api/cart': '/api/cart'} }));
-app.use('/api/orders', createProxyMiddleware({ 
-    target: process.env.ORDER_SERVICE_URL || 'http://order-service:3003', 
-    changeOrigin: true, 
-    pathRewrite: {'^/api/orders': '/api/orders'}, 
-    onProxyReq: (proxyReq, req, res) => {
-        if (req.headers.authorization) {
-            proxyReq.setHeader('Authorization', req.headers.authorization);
-        }
+app.use('/api/products', createProxyMiddleware({ target: process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001', changeOrigin: true, pathRewrite: { '^/api/products': '/api/products' } }));
+app.use('/api/users', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true, pathRewrite: { '^/api/users': '/api/users' } }));
+app.use('/api/cart', createProxyMiddleware({ target: process.env.CART_SERVICE_URL || 'http://cart-service:3004', changeOrigin: true, pathRewrite: { '^/api/cart': '/api/cart' } }));
+app.use('/api/orders', createProxyMiddleware({
+  target: process.env.ORDER_SERVICE_URL || 'http://order-service:3003',
+  changeOrigin: true,
+  pathRewrite: { '^/api/orders': '/api/orders' },
+  onProxyReq: (proxyReq, req, res) => {
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
     }
+  }
 }));
-app.use('/api/orders/health', createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL || 'http://order-service:3003', changeOrigin: true, pathRewrite: {'^/api/orders/health': '/api/orders/health'} }));
-app.use('/api/payments', createProxyMiddleware({ target: process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3005', changeOrigin: true, pathRewrite: {'^/api/payments': '/api/payments'} }));
-app.use('/api/my-purchases', createProxyMiddleware({ target: process.env.MY_PURCHASE_SERVICE_URL || 'http://my-purchase-service:3006', changeOrigin: true, pathRewrite: {'^/api/my-purchases': '/'} }));
-app.use('/api/vouchers', createProxyMiddleware({ 
-    target: process.env.VOUCHER_SERVICE_URL || 'http://voucher-service:3007', 
-    changeOrigin: true, 
-    pathRewrite: {'^/api/vouchers': '/api/vouchers'},
-    onProxyReq: (proxyReq, req, res) => {
-        if (req.headers.authorization) {
-            proxyReq.setHeader('Authorization', req.headers.authorization);
-        }
+app.use('/api/orders/health', createProxyMiddleware({ target: process.env.ORDER_SERVICE_URL || 'http://order-service:3003', changeOrigin: true, pathRewrite: { '^/api/orders/health': '/api/orders/health' } }));
+app.use('/api/payments', createProxyMiddleware({ target: process.env.PAYMENT_SERVICE_URL || 'http://payment-service:3005', changeOrigin: true, pathRewrite: { '^/api/payments': '/api/payments' } }));
+app.use('/api/my-purchases', createProxyMiddleware({ target: process.env.MY_PURCHASE_SERVICE_URL || 'http://my-purchase-service:3006', changeOrigin: true, pathRewrite: { '^/api/my-purchases': '/' } }));
+app.use('/api/vouchers', createProxyMiddleware({
+  target: process.env.VOUCHER_SERVICE_URL || 'http://voucher-service:3007',
+  changeOrigin: true,
+  pathRewrite: { '^/api/vouchers': '/api/vouchers' },
+  onProxyReq: (proxyReq, req, res) => {
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
     }
+  }
 }));
-app.use('/api/coins', createProxyMiddleware({ target: process.env.SHOPHUBCOIN_SERVICE_URL || 'http://shophubcoin-service:3008', changeOrigin: true, pathRewrite: {'^/api/coins': '/'} }));
+app.use('/api/coins', createProxyMiddleware({ target: process.env.SHOPHUBCOIN_SERVICE_URL || 'http://shophubcoin-service:3008', changeOrigin: true, pathRewrite: { '^/api/coins': '/' } }));
 app.use('/api/users/me/orders', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true }));
 
 
@@ -474,7 +477,7 @@ const swaggerOptions = {
         patch: {
           tags: ['Cart'],
           summary: 'Update item quantity',
-          parameters: [ { name: 'productId', in: 'path', required: true, schema: { type: 'string' } } ],
+          parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string' } }],
           requestBody: {
             required: true,
             content: { 'application/json': { schema: { type: 'object', properties: { quantity: { type: 'integer' } }, required: ['quantity'] } } }
@@ -484,7 +487,7 @@ const swaggerOptions = {
         delete: {
           tags: ['Cart'],
           summary: 'Remove item',
-          parameters: [ { name: 'productId', in: 'path', required: true, schema: { type: 'string' } } ],
+          parameters: [{ name: 'productId', in: 'path', required: true, schema: { type: 'string' } }],
           responses: { '200': { description: 'Item removed' } }
         }
       },

@@ -54,7 +54,16 @@ class ProductController {
 
     async createProduct(req, res) {
         try {
-            const product = await productService.createProduct(req.body, req.user, req.header('Authorization'));
+            const productData = req.body;
+            if (req.files && req.files.length > 0) {
+                const imagePaths = req.files.map(f => `/uploads/${f.filename}`);
+                productData.images = imagePaths;
+                productData.image = imagePaths[0];
+            }
+            if (productData.variants) {
+                productData.variants = JSON.parse(productData.variants);
+            }
+            const product = await productService.createProduct(productData, req.user, req.header('Authorization'));
             res.status(201).json(product);
         } catch (error) {
             res.status(400).json({ message: error.message });
@@ -63,7 +72,26 @@ class ProductController {
 
     async updateProduct(req, res) {
         try {
-            const product = await productService.updateProduct(req.params.id, req.body, req.user);
+            const updateData = req.body;
+            if (req.files && req.files.length > 0) {
+                const imagePaths = req.files.map(f => `/uploads/${f.filename}`);
+                if (updateData.existingImages) {
+                    const existing = JSON.parse(updateData.existingImages);
+                    updateData.images = [...existing, ...imagePaths];
+                } else {
+                    updateData.images = imagePaths;
+                }
+                updateData.image = updateData.images[0];
+                delete updateData.existingImages;
+            } else if (updateData.existingImages) {
+                updateData.images = JSON.parse(updateData.existingImages);
+                updateData.image = updateData.images[0] || '';
+                delete updateData.existingImages;
+            }
+            if (updateData.variants) {
+                updateData.variants = JSON.parse(updateData.variants);
+            }
+            const product = await productService.updateProduct(req.params.id, updateData, req.user);
             res.json(product);
         } catch (error) {
             if (error.message.includes('Access denied')) return res.status(403).json({ error: { message: error.message } });
@@ -94,6 +122,34 @@ class ProductController {
             });
         } catch (error) {
             res.status(400).json({ error: { message: error.message } });
+        }
+    }
+    async reduceStock(req, res) {
+        try {
+            const { quantity } = req.body;
+            if (!quantity || quantity <= 0) {
+                return res.status(400).json({ message: 'Invalid quantity' });
+            }
+            const product = await productService.reduceStock(req.params.id, quantity);
+            res.json({ message: 'Stock reduced successfully', product });
+        } catch (error) {
+            console.error('Error reducing stock:', error);
+            if (error.message.includes('Product not found') || error.message.includes('Insufficient stock')) {
+                return res.status(400).json({ message: error.message });
+            }
+            res.status(500).json({ message: error.message });
+        }
+    }
+    async restoreStock(req, res) {
+        try {
+            const { quantity } = req.body;
+            if (!quantity || quantity <= 0) {
+                return res.status(400).json({ message: 'Invalid quantity' });
+            }
+            const product = await productService.restoreStock(req.params.id, quantity);
+            res.json({ message: 'Stock restored successfully', product });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
         }
     }
 }

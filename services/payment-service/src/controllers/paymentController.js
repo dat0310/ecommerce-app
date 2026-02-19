@@ -10,6 +10,13 @@ class PaymentController {
             if (error.message === 'Invalid amount') {
                 return res.status(400).json({ error: { message: error.message } });
             }
+            // Handle Stripe-specific errors
+            if (error.type && error.type.startsWith('Stripe')) {
+                console.error('Stripe error:', error.type, error.message);
+                return res.status(error.statusCode || 500).json({
+                    error: { message: error.message || 'Payment processing error' }
+                });
+            }
             console.error('Error creating payment intent:', error);
             res.status(500).json({ error: { message: 'Internal server error' } });
         }

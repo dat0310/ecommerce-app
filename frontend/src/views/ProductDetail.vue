@@ -33,26 +33,20 @@
           <div class="product-image-container">
             <div class="main-image mb-3">
               <img 
-                :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'" 
+                :src="selectedImage || productImages[0]" 
                 :alt="product.name" 
                 class="img-fluid rounded-custom shadow-lg"
               >
             </div>
-            <div class="image-thumbnails d-flex gap-2">
+            <div v-if="productImages.length > 1" class="image-thumbnails d-flex gap-2">
               <img 
-                :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'" 
-                :alt="product.name + ' thumbnail'" 
-                class="img-thumbnail active"
-              >
-              <img 
-                :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'" 
-                :alt="product.name + ' thumbnail 2'" 
+                v-for="(img, index) in productImages"
+                :key="index"
+                :src="img" 
+                :alt="product.name + ' image ' + (index + 1)" 
                 class="img-thumbnail"
-              >
-              <img 
-                :src="product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'" 
-                :alt="product.name + ' thumbnail 3'" 
-                class="img-thumbnail"
+                :class="{ active: selectedImage === img }"
+                @click="selectedImage = img"
               >
             </div>
           </div>
@@ -75,30 +69,56 @@
             <!-- Rating -->
             <div class="d-flex align-items-center mb-3">
               <div class="text-warning me-2">
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
-                <i class="bi bi-star-fill"></i>
+                <i v-for="n in 5" :key="n" :class="n <= Math.round(averageRating) ? 'bi bi-star-fill' : 'bi bi-star'" class="me-1"></i>
               </div>
-              <span class="text-muted">(4.8) • 1,234 reviews</span>
+              <span class="text-muted">({{ averageRating }}) • {{ totalReviews }} reviews</span>
             </div>
 
             <!-- Price -->
             <div class="price-section mb-4">
-              <h2 class="display-4 fw-bold text-primary mb-2">${{ product.price }}</h2>
+              <h2 class="display-4 fw-bold text-primary mb-2">${{ calculatedPrice }}</h2>
+              <div v-if="hasVariants && totalPriceModifier !== 0" class="mb-1">
+                <small class="text-muted">Base: ${{ product.price }}</small>
+                <small :class="totalPriceModifier > 0 ? 'text-danger' : 'text-success'" class="ms-2">
+                  {{ totalPriceModifier > 0 ? '+' : '' }}${{ totalPriceModifier }}
+                </small>
+              </div>
               <p class="text-success mb-0">
                 <i class="bi bi-truck me-1"></i>
                 Free shipping on orders over $50
               </p>
             </div>
 
+            <!-- Variant Selection -->
+            <div v-if="hasVariants" class="variant-selection mb-4">
+              <div v-for="variant in product.variants" :key="variant.name" class="mb-3">
+                <label class="form-label fw-semibold">{{ variant.name }}:</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <button
+                    v-for="opt in variant.options"
+                    :key="opt.value"
+                    type="button"
+                    class="btn btn-sm variant-option-btn"
+                    :class="selectedVariants[variant.name] === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
+                    :disabled="opt.stock <= 0"
+                    @click="selectVariant(variant.name, opt.value)"
+                  >
+                    {{ opt.value }}
+                    <span v-if="opt.priceModifier !== 0" class="ms-1">
+                      ({{ opt.priceModifier > 0 ? '+' : '' }}${{ opt.priceModifier }})
+                    </span>
+                    <span v-if="opt.stock <= 0" class="ms-1 text-decoration-line-through">Sold out</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <!-- Stock Status -->
             <div class="stock-status mb-4">
               <div class="d-flex align-items-center">
-                <i :class="product.stock > 0 ? 'bi bi-check-circle text-success' : 'bi bi-x-circle text-danger'"></i>
-                <span :class="{'text-success': product.stock > 0, 'text-danger': product.stock === 0}" class="ms-2 fw-semibold">
-                  {{ product.stock > 0 ? `In stock (${product.stock} available)` : 'Out of stock' }}
+                <i :class="availableStock > 0 ? 'bi bi-check-circle text-success' : 'bi bi-x-circle text-danger'"></i>
+                <span :class="{'text-success': availableStock > 0, 'text-danger': availableStock === 0}" class="ms-2 fw-semibold">
+                  {{ availableStock > 0 ? `In stock (${availableStock} available)` : 'Out of stock' }}
                 </span>
               </div>
             </div>
@@ -227,6 +247,69 @@
           </div>
         </div>
       </div>
+
+      <!-- Reviews Section -->
+      <div class="row mt-5">
+        <div class="col-12">
+          <div class="card" data-aos="fade-up">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="bi bi-chat-left-text me-2"></i>Customer Reviews ({{ totalReviews }})</h5>
+              <div class="d-flex align-items-center">
+                <div class="text-warning me-2">
+                  <i v-for="n in 5" :key="'avg-'+n" :class="n <= Math.round(averageRating) ? 'bi bi-star-fill' : 'bi bi-star'" class="me-1"></i>
+                </div>
+                <span class="fw-bold">{{ averageRating }} / 5</span>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- User's Reviews Section -->
+              <div v-if="isAuthenticated" class="mb-4 p-3 bg-light rounded">
+                <div v-if="myExistingReviews.length > 0">
+                  <h6 class="fw-bold mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Your Reviews ({{ myExistingReviews.length }})</h6>
+                  <div v-for="myReview in myExistingReviews" :key="myReview._id" class="border-bottom pb-2 mb-2">
+                    <div class="d-flex align-items-center mb-1">
+                      <div class="text-warning me-2">
+                        <i v-for="n in 5" :key="'my-'+myReview._id+'-'+n" :class="n <= myReview.rating ? 'bi bi-star-fill' : 'bi bi-star'" class="me-1"></i>
+                      </div>
+                      <small class="text-muted">{{ formatDate(myReview.createdAt) }}</small>
+                    </div>
+                    <p class="text-muted mb-0 small">{{ myReview.comment || 'No comment provided.' }}</p>
+                  </div>
+                  <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle me-1"></i>You can review each delivered order from your <router-link to="/profile">Profile → My Purchase</router-link> page.</p>
+                </div>
+                <div v-else class="text-center">
+                  <p class="text-muted mb-2">Purchased this product? Leave a review from your orders!</p>
+                  <router-link to="/profile" class="btn btn-outline-primary btn-sm"><i class="bi bi-bag-check me-1"></i>Go to My Purchase</router-link>
+                </div>
+              </div>
+              <div v-else class="mb-4 p-3 bg-light rounded text-center">
+                <p class="text-muted mb-2">Please log in to write a review.</p>
+                <router-link to="/login" class="btn btn-outline-primary btn-sm">Log In</router-link>
+              </div>
+
+              <!-- Reviews List -->
+              <div v-if="reviews.length === 0" class="text-center py-4">
+                <i class="bi bi-chat-left-text fs-1 text-muted"></i>
+                <p class="text-muted mt-2">No reviews yet. Be the first to review this product!</p>
+              </div>
+              <div v-else>
+                <div v-for="review in reviews" :key="review._id" class="review-item border-bottom py-3">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                      <div class="text-warning mb-1">
+                        <i v-for="n in 5" :key="'r-'+review._id+'-'+n" :class="n <= review.rating ? 'bi bi-star-fill' : 'bi bi-star'" class="me-1"></i>
+                      </div>
+                      <strong>{{ review.userName }}</strong>
+                    </div>
+                    <small class="text-muted">{{ formatDate(review.createdAt) }}</small>
+                  </div>
+                  <p class="text-muted mb-0">{{ review.comment || 'No comment provided.' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Product Not Found -->
@@ -248,6 +331,7 @@
 
 <script>
 import { mapActions, mapGetters } from 'vuex'
+import axios from 'axios'
 
 export default {
   name: 'ProductDetail',
@@ -256,13 +340,19 @@ export default {
       loading: true,
       product: null,
       quantity: 1,
-      isWishlisted: false
+      isWishlisted: false,
+      selectedImage: null,
+      selectedVariants: {},
+      // Reviews
+      reviews: [],
+      averageRating: 0,
+      totalReviews: 0,
+      Math: Math
     }
   },
   computed: {
-    ...mapGetters(['isAuthenticated']),
+    ...mapGetters(['isAuthenticated', 'currentUser']),
     shopDisplayName() {
-      // try common fields; fallback to 'Unknown shop'
       return (
         this.product?.sellerName ||
         this.product?.shopName ||
@@ -270,6 +360,54 @@ export default {
         this.product?.seller?.shopName ||
         'Unknown shop'
       )
+    },
+    productImages() {
+      if (!this.product) return []
+      if (this.product.images && this.product.images.length > 0) {
+        return this.product.images
+      }
+      if (this.product.image) {
+        return [this.product.image]
+      }
+      return ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80']
+    },
+    hasVariants() {
+      return this.product && this.product.variants && this.product.variants.length > 0
+    },
+    totalPriceModifier() {
+      if (!this.hasVariants) return 0
+      let total = 0
+      for (const variant of this.product.variants) {
+        const selectedValue = this.selectedVariants[variant.name]
+        if (selectedValue) {
+          const opt = variant.options.find(o => o.value === selectedValue)
+          if (opt) total += opt.priceModifier || 0
+        }
+      }
+      return Math.round(total * 100) / 100
+    },
+    calculatedPrice() {
+      if (!this.product) return 0
+      return Math.round((this.product.price + this.totalPriceModifier) * 100) / 100
+    },
+    availableStock() {
+      if (!this.product) return 0
+      if (!this.hasVariants) return this.product.stock
+      // If variants exist, use minimum stock of selected options
+      const stocks = []
+      for (const variant of this.product.variants) {
+        const selectedValue = this.selectedVariants[variant.name]
+        if (selectedValue) {
+          const opt = variant.options.find(o => o.value === selectedValue)
+          if (opt) stocks.push(opt.stock)
+        }
+      }
+      return stocks.length > 0 ? Math.min(...stocks) : this.product.stock
+    },
+    myExistingReviews() {
+      if (!this.currentUser || !this.reviews.length) return []
+      const userId = this.currentUser._id || this.currentUser.id
+      return this.reviews.filter(r => r.userId === userId)
     }
   },
   async created() {
@@ -278,6 +416,8 @@ export default {
       const response = await this.$http.get(`/api/products/${productId}`)
       this.product = response.data
       this.syncWishlistState()
+      this.initVariantSelection()
+      await this.fetchReviews()
     } catch (error) {
       console.error('Error fetching product:', error)
       this.$toast.error('Failed to load product. Please try again later.', {
@@ -290,6 +430,21 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
+    selectVariant(groupName, value) {
+      this.selectedVariants = { ...this.selectedVariants, [groupName]: value }
+    },
+    initVariantSelection() {
+      if (this.product && this.product.variants) {
+        const selections = {}
+        for (const variant of this.product.variants) {
+          const firstAvailable = variant.options.find(o => o.stock > 0)
+          if (firstAvailable) {
+            selections[variant.name] = firstAvailable.value
+          }
+        }
+        this.selectedVariants = selections
+      }
+    },
     async handleBuyNow() {
       if (!this.isAuthenticated) {
         this.$toast.error('Please log in to proceed with purchase.', {
@@ -367,7 +522,7 @@ export default {
           _id: this.product._id,
           name: this.product.name,
           price: this.product.price,
-          image: this.product.image || '',
+          image: (this.product.images && this.product.images[0]) || this.product.image || '',
           sellerName: this.shopDisplayName
         }
         wishlist.push(minimal)
@@ -381,6 +536,22 @@ export default {
       window.dispatchEvent(new Event('wishlist-updated'))
     }
     ,
+    async fetchReviews() {
+      try {
+        const productId = this.$route.params.id
+        const response = await axios.get(`/api/products/${productId}/reviews`)
+        this.reviews = response.data.reviews || []
+        this.averageRating = response.data.averageRating || 0
+        this.totalReviews = response.data.totalReviews || 0
+      } catch (error) {
+        console.error('Error fetching reviews:', error)
+      }
+    },
+    formatDate(dateString) {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+      })
+    },
     syncWishlistState() {
       if (!this.product) {
         this.isWishlisted = false
@@ -551,5 +722,29 @@ export default {
   .feature-item {
     text-align: center;
   }
+}
+
+.variant-selection {
+  padding: 1rem;
+  background: rgba(99, 102, 241, 0.03);
+  border-radius: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+.variant-option-btn {
+  border-radius: 20px;
+  padding: 0.35rem 1rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.variant-option-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.variant-option-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

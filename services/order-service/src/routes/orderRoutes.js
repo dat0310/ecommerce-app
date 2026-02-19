@@ -20,6 +20,9 @@ router.get('/status/:status', authenticateToken, requireRole(['admin']), orderCo
 // Get orders by user ID (admin or user themselves)
 router.get('/user/:userId', authenticateToken, orderController.getUserOrders); // Note: Route handler handles permission check for userId
 
+// Check if user has purchased and received a product (for review eligibility)
+router.get('/check-purchase', authenticateToken, orderController.checkPurchase);
+
 // 3. General Collection Routes
 
 // Get all orders (admin only)

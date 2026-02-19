@@ -73,7 +73,7 @@ class OrderController {
     async createOrder(req, res) {
         console.log('Creating a new order...');
         try {
-            const order = await orderService.createOrder(req.body, req.user);
+            const order = await orderService.createOrder(req.body, req.user, req.header('Authorization'));
             res.status(201).json(order);
         } catch (error) {
             res.status(400).json({ message: error.message });
@@ -182,6 +182,18 @@ class OrderController {
             });
         } catch (error) {
             res.status(400).json({ message: error.message });
+        }
+    }
+    async checkPurchase(req, res) {
+        try {
+            const { userId, productId, orderId } = req.query;
+            if (!userId || !productId) {
+                return res.status(400).json({ message: 'userId and productId are required' });
+            }
+            const purchased = await orderService.checkPurchase(userId, productId, orderId);
+            res.json({ purchased });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
         }
     }
 }

@@ -21,6 +21,13 @@ class ProductRepository {
     async deleteById(id) {
         return await Product.findByIdAndDelete(id);
     }
+    async updateStockAtomic(id, quantity) {
+        return await Product.findOneAndUpdate(
+            { _id: id, stock: { $gte: quantity } },
+            { $inc: { stock: -quantity }, $set: { updatedAt: Date.now() } },
+            { new: true }
+        );
+    }
 }
 
 module.exports = new ProductRepository();

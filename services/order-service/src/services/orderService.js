@@ -1,5 +1,8 @@
 const orderRepository = require('../repositories/orderRepository');
 
+const axios = require('axios');
+const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001';
+
 class OrderService {
     generateOrderNumber() {
         return 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5).toUpperCase();
@@ -55,10 +58,45 @@ class OrderService {
         return await orderRepository.find();
     }
 
-    async createOrder(orderData, user) {
+    async createOrder(orderData, user, authHeader) {
         // Map Stripe 'succeeded' to 'completed' for paymentStatus
         let paymentStatus = orderData.paymentStatus;
         if (paymentStatus === 'succeeded') paymentStatus = 'completed';
+
+        // 1. Reduce Stock for all products
+        const reducedProducts = [];
+        try {
+            for (const item of orderData.products) {
+                // Ensure auth header is formatted correctly
+                const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
+
+                try {
+                    await axios.patch(`${productServiceUrl}/api/products/${item.productId}/reduce-stock`,
+                        { quantity: item.quantity },
+                        { headers: { 'Authorization': token } }
+                    );
+                    reducedProducts.push(item);
+                } catch (reduceError) {
+                    console.error(`Failed to reduce stock for product ${item.productId}:`, reduceError.response?.data || reduceError.message);
+                    throw new Error(reduceError.response?.data?.message || 'Insufficient stock or product error');
+                }
+            }
+        } catch (error) {
+            // Rollback: Restore stock for already reduced products
+            console.log('Rolling back stock reduction...');
+            for (const item of reducedProducts) {
+                try {
+                    const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
+                    await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
+                        { quantity: item.quantity },
+                        { headers: { 'Authorization': token } }
+                    );
+                } catch (restoreError) {
+                    console.error(`CRITICAL: Failed to rollback stock for product ${item.productId}`, restoreError.message);
+                }
+            }
+            throw error; // Re-throw to controller
+        }
 
         const newOrderData = {
             ...orderData,
@@ -69,7 +107,24 @@ class OrderService {
             updatedAt: Date.now()
         };
 
-        return await orderRepository.create(newOrderData);
+        try {
+            return await orderRepository.create(newOrderData);
+        } catch (dbError) {
+            // Rollback stock if DB creation fails
+            console.log('Order creation failed, rolling back stock...');
+            for (const item of reducedProducts) {
+                try {
+                    const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
+                    await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
+                        { quantity: item.quantity },
+                        { headers: { 'Authorization': token } }
+                    );
+                } catch (restoreError) {
+                    console.error(`CRITICAL: Failed to rollback stock for product ${item.productId}`, restoreError.message);
+                }
+            }
+            throw dbError;
+        }
     }
 
     async getOrderById(id, user) {
@@ -138,6 +193,19 @@ class OrderService {
             status,
             updatedAt: Date.now()
         });
+    }
+
+    async checkPurchase(userId, productId, orderId) {
+        const query = {
+            userId,
+            status: 'delivered',
+            'products.productId': productId
+        };
+        if (orderId) {
+            query._id = orderId;
+        }
+        const order = await orderRepository.find(query);
+        return order && order.length > 0;
     }
 
     async updatePaymentStatus(id, paymentStatus) {

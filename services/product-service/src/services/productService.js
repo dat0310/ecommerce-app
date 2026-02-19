@@ -89,6 +89,18 @@ class ProductService {
             updatedAt: Date.now()
         });
     }
+    async reduceStock(id, quantity) {
+        const updatedProduct = await productRepository.updateStockAtomic(id, quantity);
+        if (!updatedProduct) {
+            const product = await productRepository.findById(id);
+            if (!product) throw new Error('Product not found');
+            throw new Error(`Insufficient stock for product ${product.name}. Available: ${product.stock}`);
+        }
+        return updatedProduct;
+    }
+    async restoreStock(id, quantity) {
+        return await productRepository.updateStockAtomic(id, -quantity);
+    }
 }
 
 module.exports = new ProductService();

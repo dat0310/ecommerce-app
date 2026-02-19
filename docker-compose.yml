@@ -19,8 +19,11 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/productdb
       - JWT_SECRET=supersecretjwtkey
       - JWT_EXPIRE=7d
+      - ORDER_SERVICE_URL=http://order-service:3003
     depends_on:
       - mongo
+    volumes:
+      - product-uploads:/app/uploads
     networks:
       - ecommerce-network
 
@@ -48,6 +51,7 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/orderdb
       - JWT_SECRET=supersecretjwtkey
       - USER_SERVICE_URL=http://user-service:3002
+      - PRODUCT_SERVICE_URL=http://product-service:3001
     depends_on:
       - mongo
     networks:
@@ -71,10 +75,8 @@ services:
     build: ./services/payment-service
     ports:
       - "3005:3005"
-    environment:
-      # Do NOT commit production secrets here. Provide STRIPE_SECRET_KEY via an external .env file
-      # Example using an env file: docker-compose --env-file .env.dev up
-      - STRIPE_SECRET_KEY
+    env_file:
+      - ./services/payment-service/.env
     networks:
       - ecommerce-network
 
@@ -145,6 +147,7 @@ services:
 
 volumes:
   mongo_data:
+  product-uploads:
 
 
 networks:

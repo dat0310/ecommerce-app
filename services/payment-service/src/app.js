@@ -1,8 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const paymentRoutes = require('./routes/paymentRoutes');
 const paymentController = require('./controllers/paymentController');
-require('dotenv').config();
 
 const app = express();
 

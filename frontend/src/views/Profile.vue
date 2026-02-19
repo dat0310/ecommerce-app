@@ -283,7 +283,7 @@
                 <div class="card-body p-0">
                   <div v-for="product in order.products" :key="product.productId" class="d-flex p-3 border-bottom bg-light bg-opacity-10">
                     <img 
-                      :src="product.image || 'https://via.placeholder.com/80'" 
+                      :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/80'" 
                       @error="$event.target.src = 'https://via.placeholder.com/80'"
                       class="rounded me-3" 
                       style="width: 80px; height: 80px; object-fit: cover;" 
@@ -296,9 +296,26 @@
                           <div class="text-muted small mb-1">Variation: Default</div>
                           <div class="text-dark small">x{{ product.quantity }}</div>
                         </div>
-                        <div class="text-end">
+                        <div class="text-end d-flex flex-column align-items-end gap-1">
                           <div class="text-decoration-line-through text-muted small" v-if="product.originalPrice">{{ formatCurrency(product.price * 1.2) }}</div>
                           <div class="text-danger fw-bold">{{ formatCurrency(product.price) }}</div>
+                          <template v-if="order.status === 'delivered'">
+                            <span
+                              v-if="reviewedKeys.has(order._id + ':' + product.productId)"
+                              class="badge bg-success mt-1 d-flex align-items-center gap-1"
+                              style="font-size: 0.7rem;"
+                            >
+                              <i class="bi bi-check-circle-fill"></i> Reviewed
+                            </span>
+                            <button
+                              v-else
+                              class="btn btn-sm btn-warning text-dark px-2 mt-1 d-flex align-items-center gap-1"
+                              style="font-size: 0.75rem;"
+                              @click="openReviewModal(product, order)"
+                            >
+                              <i class="bi bi-star-fill"></i> Review
+                            </button>
+                          </template>
                         </div>
                       </div>
                     </div>
@@ -319,7 +336,7 @@
                         <span v-if="order.status === 'cancelled'">Cancelled by you</span>
                         <span v-else>Order ID: {{ order.orderNumber }}</span>
                       </div>
-                      <div class="d-flex gap-2">
+                      <div class="d-flex gap-2 flex-wrap">
                          <button class="btn btn-danger text-white px-4 border-0 rounded-1">Buy Again</button>
                          <button class="btn btn-outline-secondary px-3 rounded-1" @click="viewOrderDetails(order)">View Details</button>
                          <button class="btn btn-outline-secondary px-3 rounded-1">Contact Seller</button>
@@ -381,6 +398,76 @@
         </div>
       </div>
     </div>
+
+    <!-- Review Modal -->
+    <div v-if="showReviewModal" class="modal-overlay" @click.self="closeReviewModal">
+      <div class="modal-content-custom">
+        <div class="modal-header-custom">
+          <h5 class="mb-0">
+            <i class="bi bi-star-fill text-warning me-2"></i>Write a Review
+          </h5>
+          <button class="btn-close" @click="closeReviewModal"></button>
+        </div>
+        <div class="modal-body-custom">
+          <!-- Product Info -->
+          <div class="d-flex align-items-center mb-4 p-3 bg-light rounded">
+            <img
+              :src="reviewTarget.image || 'https://via.placeholder.com/60'"
+              class="rounded me-3"
+              style="width: 60px; height: 60px; object-fit: cover;"
+              alt="Product"
+            >
+            <div>
+              <h6 class="mb-0">{{ reviewTarget.productName || reviewTarget.name }}</h6>
+              <small class="text-muted">Order: {{ reviewTarget.orderNumber }}</small>
+            </div>
+          </div>
+
+          <!-- Alerts -->
+          <div v-if="modalReviewError" class="alert alert-danger py-2 mb-3">
+            <i class="bi bi-exclamation-triangle me-2"></i>{{ modalReviewError }}
+          </div>
+          <div v-if="modalReviewSuccess" class="alert alert-success py-2 mb-3">
+            <i class="bi bi-check-circle me-2"></i>{{ modalReviewSuccess }}
+          </div>
+
+          <!-- Rating -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">Your Rating</label>
+            <div class="star-rating-input">
+              <i v-for="n in 5" :key="'modal-star-'+n"
+                :class="n <= modalReview.rating ? 'bi bi-star-fill text-warning' : 'bi bi-star text-muted'"
+                class="fs-3 me-1"
+                style="cursor: pointer;"
+                @click="modalReview.rating = n"
+              ></i>
+            </div>
+          </div>
+
+          <!-- Comment -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">Your Comment</label>
+            <textarea
+              v-model="modalReview.comment"
+              class="form-control"
+              rows="4"
+              placeholder="Share your experience with this product..."
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer-custom">
+          <button class="btn btn-outline-secondary" @click="closeReviewModal">Cancel</button>
+          <button
+            class="btn btn-primary"
+            :disabled="modalReview.rating === 0 || modalSubmitting"
+            @click="submitModalReview"
+          >
+            <span v-if="modalSubmitting"><i class="bi bi-hourglass-split me-1"></i>Submitting...</span>
+            <span v-else><i class="bi bi-send me-1"></i>Submit Review</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -427,7 +514,15 @@ export default {
       vouchers: [],
       vouchersLoading: false,
       coins: 0,
-      dailyClaimed: false
+      dailyClaimed: false,
+      // Review Modal
+      showReviewModal: false,
+      reviewTarget: {},
+      modalReview: { rating: 0, comment: '' },
+      modalReviewError: '',
+      modalReviewSuccess: '',
+      modalSubmitting: false,
+      reviewedKeys: new Set()
     }
   },
   computed: {
@@ -461,6 +556,7 @@ export default {
     await this.loadLocations()
     await this.loadUserData()
     await this.loadOrders()
+    await this.loadMyReviews()
     await this.loadVouchers()
     await this.loadCoins()
   },
@@ -631,6 +727,15 @@ export default {
         this.ordersLoading = false
       }
     },
+    async loadMyReviews() {
+      try {
+        const response = await this.$http.get('/api/products/reviews/my')
+        const reviews = response.data || []
+        this.reviewedKeys = new Set(reviews.map(r => r.orderId + ':' + r.productId))
+      } catch (error) {
+        console.error('Error loading user reviews:', error)
+      }
+    },
     async fetchMissingImages() {
       const productsToFetch = new Set()
       
@@ -739,6 +844,48 @@ export default {
     },
     formatCurrency(value) {
       return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+    },
+    openReviewModal(product, order) {
+      this.reviewTarget = { ...product, orderId: order._id, orderNumber: order.orderNumber }
+      this.modalReview = { rating: 0, comment: '' }
+      this.modalReviewError = ''
+      this.modalReviewSuccess = ''
+      this.showReviewModal = true
+    },
+    closeReviewModal() {
+      this.showReviewModal = false
+      this.reviewTarget = {}
+      this.modalReview = { rating: 0, comment: '' }
+      this.modalReviewError = ''
+      this.modalReviewSuccess = ''
+    },
+    async submitModalReview() {
+      this.modalReviewError = ''
+      this.modalReviewSuccess = ''
+      this.modalSubmitting = true
+
+      try {
+        const token = localStorage.getItem('token')
+        const productId = this.reviewTarget.productId
+        const orderId = this.reviewTarget.orderId
+        await this.$http.post(`/api/products/${productId}/reviews`, {
+          rating: this.modalReview.rating,
+          comment: this.modalReview.comment,
+          orderId
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+        this.modalReviewSuccess = 'Review submitted successfully!'
+        this.reviewedKeys = new Set([...this.reviewedKeys, orderId + ':' + productId])
+        setTimeout(() => {
+          this.closeReviewModal()
+        }, 1500)
+      } catch (error) {
+        this.modalReviewError = error.response?.data?.message || 'Failed to submit review'
+      } finally {
+        this.modalSubmitting = false
+      }
     }
   }
 }
@@ -757,5 +904,62 @@ export default {
 .list-group-item a.active {
   font-weight: bold;
   color: #007bff;
+}
+
+/* Review Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content-custom {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header-custom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modal-body-custom {
+  padding: 1.5rem;
+}
+
+.modal-footer-custom {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e9ecef;
 }
 </style>

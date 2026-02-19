@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
+const reviewController = require('../controllers/reviewController');
 const { authenticateToken, requireRole } = require('../middleware/authMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 
 // Public Routes
 router.get('/', productController.getApprovedProducts);
@@ -9,7 +11,7 @@ router.get('/test-pending', productController.getPendingProducts); // Kept for c
 
 // Seller Routes
 router.get('/seller/my-products', authenticateToken, requireRole(['seller']), productController.getSellerProducts);
-router.post('/', authenticateToken, requireRole(['seller']), productController.createProduct);
+router.post('/', authenticateToken, requireRole(['seller']), upload.array('images', 10), productController.createProduct);
 
 // Admin Routes
 router.get('/pending', authenticateToken, requireRole(['admin']), productController.getPendingProducts);
@@ -69,9 +71,20 @@ const optionalAuthenticateToken = async (req, res, next) => {
     next();
 };
 
+// Review Routes (must come before /:id to avoid route conflicts)
+router.get('/reviews/my', authenticateToken, reviewController.getMyReviews);
+router.get('/:id/reviews', reviewController.getProductReviews);
+router.post('/:id/reviews', authenticateToken, reviewController.createReview);
+router.delete('/:id/reviews', authenticateToken, reviewController.deleteReview);
+
 router.get('/:id', optionalAuthenticateToken, productController.getProductById);
 
-router.patch('/:id', authenticateToken, productController.updateProduct);
+router.patch('/:id', authenticateToken, upload.array('images', 10), productController.updateProduct);
+// Internal or Admin Route (or Service-to-Service)
+router.patch('/:id/reduce-stock', authenticateToken, productController.reduceStock);
+
+router.patch('/:id/restore-stock', authenticateToken, productController.restoreStock);
+
 router.delete('/:id', authenticateToken, productController.deleteProduct);
 
 module.exports = router;

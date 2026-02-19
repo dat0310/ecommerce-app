@@ -64,10 +64,19 @@ class UserController {
 
     async getMe(req, res) {
         try {
-            console.log('getMe - req.user before destructure:', JSON.stringify(req.user));
-            const { profile, ...user } = req.user;
-            console.log('getMe - returning user:', JSON.stringify(user));
-            res.json(user);
+            const user = req.user.profile;
+            const userResponse = {
+                id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                phone: user.phone,
+                addresses: user.addresses,
+                avatar: user.avatar,
+                createdAt: user.createdAt
+            };
+            res.json(userResponse);
         } catch (error) {
             res.status(500).json({ error: { message: error.message } });
         }

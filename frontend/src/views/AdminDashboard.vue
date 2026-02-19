@@ -272,7 +272,7 @@
                     <div v-for="product in pendingProducts" :key="product._id" class="col-md-6 col-lg-4 mb-3">
                       <div class="card">
                         <img 
-                          :src="product.image || 'https://via.placeholder.com/200'" 
+                          :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/200'" 
                           class="card-img-top" 
                           style="height: 200px; object-fit: cover;"
                           :alt="product.name"
