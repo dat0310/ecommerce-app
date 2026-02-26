@@ -72,7 +72,7 @@ class OrderService {
 
                 try {
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/reduce-stock`,
-                        { quantity: item.quantity },
+                        { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
                         { headers: { 'Authorization': token } }
                     );
                     reducedProducts.push(item);
@@ -88,7 +88,7 @@ class OrderService {
                 try {
                     const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
-                        { quantity: item.quantity },
+                        { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
                         { headers: { 'Authorization': token } }
                     );
                 } catch (restoreError) {
@@ -116,7 +116,7 @@ class OrderService {
                 try {
                     const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
-                        { quantity: item.quantity },
+                        { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
                         { headers: { 'Authorization': token } }
                     );
                 } catch (restoreError) {

@@ -37,6 +37,11 @@ const orderSchema = new mongoose.Schema({
             },
             image: {
                 type: String
+            },
+            selectedOptions: {
+                type: Map,
+                of: String,
+                default: {}
             }
         }
     ],

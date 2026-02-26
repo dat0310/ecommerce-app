@@ -76,13 +76,10 @@
 
             <!-- Price -->
             <div class="price-section mb-4">
-              <h2 class="display-4 fw-bold text-primary mb-2">${{ calculatedPrice }}</h2>
-              <div v-if="hasVariants && totalPriceModifier !== 0" class="mb-1">
-                <small class="text-muted">Base: ${{ product.price }}</small>
-                <small :class="totalPriceModifier > 0 ? 'text-danger' : 'text-success'" class="ms-2">
-                  {{ totalPriceModifier > 0 ? '+' : '' }}${{ totalPriceModifier }}
-                </small>
-              </div>
+              <h2 class="display-4 fw-bold text-primary mb-2">{{ displayPrice }}</h2>
+              <p v-if="hasVariants && !allOptionsSelected" class="text-muted small mb-1">
+                <i class="bi bi-info-circle me-1"></i>Select all options to see exact price
+              </p>
               <p class="text-success mb-0">
                 <i class="bi bi-truck me-1"></i>
                 Free shipping on orders over $50
@@ -92,22 +89,18 @@
             <!-- Variant Selection -->
             <div v-if="hasVariants" class="variant-selection mb-4">
               <div v-for="variant in product.variants" :key="variant.name" class="mb-3">
-                <label class="form-label fw-semibold">{{ variant.name }}:</label>
+                <label class="form-label fw-semibold">{{ variant.name }}: <span v-if="selectedVariants[variant.name]" class="text-primary">{{ selectedVariants[variant.name] }}</span></label>
                 <div class="d-flex flex-wrap gap-2">
                   <button
                     v-for="opt in variant.options"
                     :key="opt.value"
                     type="button"
-                    class="btn btn-sm variant-option-btn"
+                    class="btn btn-sm variant-option-btn d-flex align-items-center gap-1"
                     :class="selectedVariants[variant.name] === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
-                    :disabled="opt.stock <= 0"
-                    @click="selectVariant(variant.name, opt.value)"
+                    @click="selectVariant(variant.name, opt.value, opt.image)"
                   >
+                    <img v-if="opt.image" :src="opt.image" :alt="opt.value" class="rounded" style="width: 24px; height: 24px; object-fit: cover;">
                     {{ opt.value }}
-                    <span v-if="opt.priceModifier !== 0" class="ms-1">
-                      ({{ opt.priceModifier > 0 ? '+' : '' }}${{ opt.priceModifier }})
-                    </span>
-                    <span v-if="opt.stock <= 0" class="ms-1 text-decoration-line-through">Sold out</span>
                   </button>
                 </div>
               </div>
@@ -130,7 +123,7 @@
             </div>
 
             <!-- Quantity and Add to Cart -->
-            <div v-if="product.stock > 0" class="add-to-cart-section mb-4">
+            <div v-if="product.stock > 0 && (!hasVariants || allOptionsSelected)" class="add-to-cart-section mb-4">
               <div class="row g-3 align-items-center">
                 <div class="col-auto">
                   <label for="quantity" class="form-label fw-semibold">Quantity:</label>
@@ -374,35 +367,46 @@ export default {
     hasVariants() {
       return this.product && this.product.variants && this.product.variants.length > 0
     },
-    totalPriceModifier() {
-      if (!this.hasVariants) return 0
-      let total = 0
-      for (const variant of this.product.variants) {
-        const selectedValue = this.selectedVariants[variant.name]
-        if (selectedValue) {
-          const opt = variant.options.find(o => o.value === selectedValue)
-          if (opt) total += opt.priceModifier || 0
-        }
-      }
-      return Math.round(total * 100) / 100
+    hasCombinations() {
+      return this.product && this.product.productCombinations && this.product.productCombinations.length > 0
     },
-    calculatedPrice() {
-      if (!this.product) return 0
-      return Math.round((this.product.price + this.totalPriceModifier) * 100) / 100
+    allOptionsSelected() {
+      if (!this.hasVariants) return true
+      return this.product.variants.every(v => !!this.selectedVariants[v.name])
+    },
+    matchingCombinations() {
+      if (!this.hasCombinations) return []
+      return this.product.productCombinations.filter(c => {
+        const opts = c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {})
+        return Object.entries(this.selectedVariants).every(([k, v]) => opts[k] === v)
+      })
+    },
+    displayPrice() {
+      if (!this.product) return '$0'
+
+      if (!this.hasCombinations) return `$${this.product.price}`
+
+      const combos = this.matchingCombinations
+      if (combos.length === 0) {
+        const allPrices = this.product.productCombinations.map(c => c.price)
+        const min = Math.min(...allPrices)
+        const max = Math.max(...allPrices)
+        return min === max ? `$${min}` : `$${min} - $${max}`
+      }
+
+      const prices = combos.map(c => c.price)
+      const min = Math.min(...prices)
+      const max = Math.max(...prices)
+      return min === max ? `$${min}` : `$${min} - $${max}`
     },
     availableStock() {
       if (!this.product) return 0
-      if (!this.hasVariants) return this.product.stock
-      // If variants exist, use minimum stock of selected options
-      const stocks = []
-      for (const variant of this.product.variants) {
-        const selectedValue = this.selectedVariants[variant.name]
-        if (selectedValue) {
-          const opt = variant.options.find(o => o.value === selectedValue)
-          if (opt) stocks.push(opt.stock)
-        }
+      if (!this.hasCombinations) return this.product.stock
+
+      if (this.allOptionsSelected && this.matchingCombinations.length > 0) {
+        return this.matchingCombinations[0].stock
       }
-      return stocks.length > 0 ? Math.min(...stocks) : this.product.stock
+      return this.product.stock
     },
     myExistingReviews() {
       if (!this.currentUser || !this.reviews.length) return []
@@ -430,74 +434,86 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
-    selectVariant(groupName, value) {
-      this.selectedVariants = { ...this.selectedVariants, [groupName]: value }
-    },
-    initVariantSelection() {
-      if (this.product && this.product.variants) {
-        const selections = {}
-        for (const variant of this.product.variants) {
-          const firstAvailable = variant.options.find(o => o.stock > 0)
-          if (firstAvailable) {
-            selections[variant.name] = firstAvailable.value
+    selectVariant(groupName, value, optImage) {
+      if (this.selectedVariants[groupName] === value) {
+        const updated = { ...this.selectedVariants }
+        delete updated[groupName]
+        this.selectedVariants = updated
+        // Find image from remaining selected options
+        let fallbackImage = null
+        if (this.product && this.product.variants) {
+          for (const variant of this.product.variants) {
+            const selectedValue = updated[variant.name]
+            if (selectedValue) {
+              const opt = variant.options.find(o => o.value === selectedValue)
+              if (opt && opt.image) {
+                fallbackImage = opt.image
+                break
+              }
+            }
           }
         }
-        this.selectedVariants = selections
+        this.selectedImage = fallbackImage
+      } else {
+        this.selectedVariants = { ...this.selectedVariants, [groupName]: value }
+        if (optImage) {
+          this.selectedImage = optImage
+        }
       }
+    },
+    initVariantSelection() {
+      this.selectedVariants = {}
     },
     async handleBuyNow() {
       if (!this.isAuthenticated) {
-        this.$toast.error('Please log in to proceed with purchase.', {
-          position: 'top-right',
-          timeout: 3000
-        })
+        this.$toast.error('Please log in to proceed with purchase.', { position: 'top-right', timeout: 3000 })
         this.$router.push('/login')
         return
       }
       if (!this.product) return
-      // Add to cart with selected quantity
-      for (let i = 0; i < this.quantity; i++) {
-        await this.addToCart({ ...this.product })
+      if (this.hasVariants && !this.allOptionsSelected) {
+        this.$toast.warning('Please select all options before buying.', { position: 'top-right', timeout: 3000 })
+        return
       }
-      // Redirect to cart and auto-select this item via query param
+      const productToAdd = {
+        ...this.product,
+        price: this.hasCombinations && this.matchingCombinations.length > 0 ? this.matchingCombinations[0].price : this.product.price,
+        selectedOptions: { ...this.selectedVariants }
+      }
+      for (let i = 0; i < this.quantity; i++) {
+        await this.addToCart(productToAdd)
+      }
       this.$router.push({ path: '/cart', query: { select: this.product._id } })
     },
     handleAddToCart() {
       if (!this.isAuthenticated) {
-        this.$toast.error('Please log in to add items to cart.', {
-          position: 'top-right',
-          timeout: 3000
-        })
+        this.$toast.error('Please log in to add items to cart.', { position: 'top-right', timeout: 3000 })
         this.$router.push('/login')
         return
       }
+      if (this.hasVariants && !this.allOptionsSelected) {
+        this.$toast.warning('Please select all options before adding to cart.', { position: 'top-right', timeout: 3000 })
+        return
+      }
       if (this.quantity < 1) {
-        this.$toast.warning('Please select at least 1 item.', {
-          position: 'top-right',
-          timeout: 3000
-        })
+        this.$toast.warning('Please select at least 1 item.', { position: 'top-right', timeout: 3000 })
+        return
+      }
+      if (this.quantity > this.availableStock) {
+        this.$toast.warning(`Only ${this.availableStock} items available.`, { position: 'top-right', timeout: 3000 })
         return
       }
 
-      if (this.quantity > this.product.stock) {
-        this.$toast.warning(`Only ${this.product.stock} items available.`, {
-          position: 'top-right',
-          timeout: 3000
-        })
-        return
+      const productToAdd = {
+        ...this.product,
+        price: this.hasCombinations && this.matchingCombinations.length > 0 ? this.matchingCombinations[0].price : this.product.price,
+        selectedOptions: { ...this.selectedVariants }
       }
-
-      // Add the product to cart with the selected quantity
-      const productToAdd = { ...this.product }
       for (let i = 0; i < this.quantity; i++) {
         this.addToCart(productToAdd)
       }
 
-      this.$toast.success(`${this.quantity} ${this.product.name} added to your cart.`, {
-        position: 'top-right',
-        timeout: 3000
-      })
-
+      this.$toast.success(`${this.quantity} ${this.product.name} added to your cart.`, { position: 'top-right', timeout: 3000 })
       this.quantity = 1
     },
     handleAddToWishlist() {

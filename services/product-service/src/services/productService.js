@@ -89,8 +89,13 @@ class ProductService {
             updatedAt: Date.now()
         });
     }
-    async reduceStock(id, quantity) {
-        const updatedProduct = await productRepository.updateStockAtomic(id, quantity);
+    async reduceStock(id, quantity, selectedOptions) {
+        let updatedProduct;
+        if (selectedOptions && Object.keys(selectedOptions).length > 0) {
+            updatedProduct = await productRepository.updateCombinationStockAtomic(id, selectedOptions, quantity);
+        } else {
+            updatedProduct = await productRepository.updateStockAtomic(id, quantity);
+        }
         if (!updatedProduct) {
             const product = await productRepository.findById(id);
             if (!product) throw new Error('Product not found');
@@ -98,7 +103,11 @@ class ProductService {
         }
         return updatedProduct;
     }
-    async restoreStock(id, quantity) {
+
+    async restoreStock(id, quantity, selectedOptions) {
+        if (selectedOptions && Object.keys(selectedOptions).length > 0) {
+            return await productRepository.updateCombinationStockAtomic(id, selectedOptions, -quantity);
+        }
         return await productRepository.updateStockAtomic(id, -quantity);
     }
 }

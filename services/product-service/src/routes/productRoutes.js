@@ -11,7 +11,7 @@ router.get('/test-pending', productController.getPendingProducts); // Kept for c
 
 // Seller Routes
 router.get('/seller/my-products', authenticateToken, requireRole(['seller']), productController.getSellerProducts);
-router.post('/', authenticateToken, requireRole(['seller']), upload.array('images', 10), productController.createProduct);
+router.post('/', authenticateToken, requireRole(['seller']), upload.any(), productController.createProduct);
 
 // Admin Routes
 router.get('/pending', authenticateToken, requireRole(['admin']), productController.getPendingProducts);
@@ -79,7 +79,7 @@ router.delete('/:id/reviews', authenticateToken, reviewController.deleteReview);
 
 router.get('/:id', optionalAuthenticateToken, productController.getProductById);
 
-router.patch('/:id', authenticateToken, upload.array('images', 10), productController.updateProduct);
+router.patch('/:id', authenticateToken, upload.any(), productController.updateProduct);
 // Internal or Admin Route (or Service-to-Service)
 router.patch('/:id/reduce-stock', authenticateToken, productController.reduceStock);
 

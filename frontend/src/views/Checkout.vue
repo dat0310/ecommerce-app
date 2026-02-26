@@ -373,7 +373,8 @@ export default {
             sellerName: item.sellerName,
             quantity: item.quantity,
             price: item.price,
-            image: item.image
+            image: item.image,
+            selectedOptions: item.selectedOptions || {}
           })),
           totalAmount: this.totalAmount,
           shippingAddress: this.shippingAddress,
@@ -398,7 +399,11 @@ export default {
 
         // Remove placed items from cart
         for (const item of this.selectedItems) {
-          this.$store.dispatch('removeFromCart', item._id)
+          try {
+            await this.$store.dispatch('removeFromCart', item._id)
+          } catch (e) {
+            // Ignore errors - item may already be removed
+          }
         }
 
         // Redirect to profile

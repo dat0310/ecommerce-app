@@ -286,29 +286,6 @@
                           >
                         </div>
                         <div class="mb-3">
-                          <label for="price" class="form-label">Price *</label>
-                          <input 
-                            type="number" 
-                            class="form-control"
-                            id="price"
-                            v-model="productForm.price"
-                            min="0"
-                            step="0.01"
-                            required
-                          >
-                        </div>
-                        <div class="mb-3">
-                          <label for="stock" class="form-label">Stock Quantity *</label>
-                          <input 
-                            type="number" 
-                            class="form-control"
-                            id="stock"
-                            v-model="productForm.stock"
-                            min="0"
-                            required
-                          >
-                        </div>
-                        <div class="mb-3">
                           <label for="category" class="form-label">Category *</label>
                           <select 
                             class="form-select"
@@ -340,6 +317,12 @@
                             required
                           ></textarea>
                         </div>
+                      </div>
+                    </div>
+
+                    <!-- Product Images Section (Full Width) -->
+                    <div class="row mt-3">
+                      <div class="col-12">
                         <div class="mb-3">
                           <label class="form-label">Product Images <small class="text-muted">(max 10)</small></label>
                           <div 
@@ -398,7 +381,7 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                           <div>
                             <h6 class="mb-0"><i class="bi bi-sliders me-2"></i>Product Options <span class="badge bg-secondary">Optional</span></h6>
-                            <small class="text-muted">Add options like Size, Color, Material with custom pricing and stock</small>
+                            <small class="text-muted">Add options like Size, Color, Storage then set price/stock for each combination</small>
                           </div>
                           <button type="button" class="btn btn-outline-primary btn-sm" @click="addVariantGroup">
                             <i class="bi bi-plus-lg me-1"></i>Add Option Group
@@ -411,7 +394,7 @@
                               type="text" 
                               class="form-control form-control-sm border-0 bg-transparent fw-bold" 
                               v-model="variant.name" 
-                              placeholder="Option name (e.g., Size, Color, Material)"
+                              placeholder="Option name (e.g., Size, Color)"
                               style="max-width: 300px;"
                             >
                             <button type="button" class="btn btn-sm btn-outline-danger" @click="removeVariantGroup(vIndex)" title="Remove group">
@@ -419,40 +402,73 @@
                             </button>
                           </div>
                           <div class="card-body p-2">
-                            <table class="table table-sm table-borderless mb-2 variant-table">
-                              <thead>
-                                <tr class="text-muted">
-                                  <th style="width: 35%">Value</th>
-                                  <th style="width: 25%">Price (+/-)</th>
-                                  <th style="width: 25%">Stock</th>
-                                  <th style="width: 15%"></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <tr v-for="(opt, oIndex) in variant.options" :key="oIndex">
-                                  <td>
-                                    <input type="text" class="form-control form-control-sm" v-model="opt.value" placeholder="e.g., S, M, L">
-                                  </td>
-                                  <td>
-                                    <div class="input-group input-group-sm">
-                                      <span class="input-group-text">$</span>
-                                      <input type="number" class="form-control form-control-sm" v-model.number="opt.priceModifier" step="0.01" placeholder="0">
-                                    </div>
-                                  </td>
-                                  <td>
-                                    <input type="number" class="form-control form-control-sm" v-model.number="opt.stock" min="0" placeholder="0">
-                                  </td>
-                                  <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-outline-danger" @click="removeVariantOption(vIndex, oIndex)" title="Remove">
-                                      <i class="bi bi-x"></i>
-                                    </button>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
+                            <div class="mb-2">
+                              <div v-for="(opt, oIndex) in variant.options" :key="oIndex" class="d-flex align-items-center gap-2 mb-2 p-2 border rounded bg-white">
+                                <input type="text" class="form-control form-control-sm" v-model="opt.value" placeholder="e.g., Red, Blue" style="max-width: 160px;">
+                                <!-- Option Image Upload -->
+                                <div class="option-image-upload">
+                                  <label :for="'optImg_' + vIndex + '_' + oIndex" class="btn btn-sm btn-outline-secondary mb-0" title="Upload image">
+                                    <i class="bi bi-image"></i>
+                                  </label>
+                                  <input
+                                    type="file"
+                                    :id="'optImg_' + vIndex + '_' + oIndex"
+                                    accept="image/jpeg,image/png,image/webp,image/gif"
+                                    @change="handleOptionImageSelect(vIndex, oIndex, $event)"
+                                    style="display: none;"
+                                  >
+                                </div>
+                                <!-- Option Image Preview -->
+                                <div v-if="opt.imagePreview || opt.image" class="option-image-preview">
+                                  <img :src="opt.imagePreview || opt.image" alt="option" class="rounded" style="width: 40px; height: 40px; object-fit: cover;">
+                                  <button type="button" class="btn btn-sm text-danger p-0 ms-1" @click="removeOptionImage(vIndex, oIndex)" title="Remove image">
+                                    <i class="bi bi-x-circle-fill" style="font-size: 0.75rem;"></i>
+                                  </button>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger ms-auto" @click="removeVariantOption(vIndex, oIndex)" title="Remove">
+                                  <i class="bi bi-x"></i>
+                                </button>
+                              </div>
+                            </div>
                             <button type="button" class="btn btn-sm btn-outline-secondary" @click="addVariantOption(vIndex)">
                               <i class="bi bi-plus me-1"></i>Add Value
                             </button>
+                          </div>
+                        </div>
+
+                        <!-- Auto-generated Combinations Table -->
+                        <div v-if="generatedCombinations.length > 0" class="card mb-3 border-primary">
+                          <div class="card-header bg-primary text-white py-2">
+                            <h6 class="mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Price & Stock per Combination ({{ generatedCombinations.length }})</h6>
+                          </div>
+                          <div class="card-body p-0">
+                            <div class="table-responsive">
+                              <table class="table table-sm table-hover mb-0">
+                                <thead class="table-light">
+                                  <tr>
+                                    <th v-for="v in variants" :key="'th-'+v.name">{{ v.name || 'Option' }}</th>
+                                    <th style="width: 150px;">Price ($)</th>
+                                    <th style="width: 120px;">Stock</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr v-for="(combo, cIndex) in productCombinations" :key="cIndex">
+                                    <td v-for="v in variants" :key="'td-'+v.name+'-'+cIndex" class="align-middle">
+                                      <span class="badge bg-light text-dark">{{ combo.options[v.name] }}</span>
+                                    </td>
+                                    <td>
+                                      <div class="input-group input-group-sm">
+                                        <span class="input-group-text">$</span>
+                                        <input type="number" class="form-control form-control-sm" v-model.number="combo.price" min="0" step="0.01" placeholder="0">
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <input type="number" class="form-control form-control-sm" v-model.number="combo.stock" min="0" placeholder="0">
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
 
@@ -601,6 +617,7 @@ export default {
       imagePreviews: [],
       existingImages: [],
       variants: [],
+      productCombinations: [],
       productForm: {
         name: '',
         price: '',
@@ -622,6 +639,44 @@ export default {
     },
     totalImageCount() {
       return this.existingImages.length + this.imageFiles.length
+    },
+    generatedCombinations() {
+      const validVariants = this.variants.filter(v => v.name && v.options.some(o => o.value))
+      if (validVariants.length === 0) return []
+
+      const optionArrays = validVariants.map(v => 
+        v.options.filter(o => o.value).map(o => ({ name: v.name, value: o.value }))
+      )
+
+      const cartesian = (arrays) => {
+        if (arrays.length === 0) return [[]]
+        const [first, ...rest] = arrays
+        const restCombos = cartesian(rest)
+        return first.flatMap(item => restCombos.map(combo => [item, ...combo]))
+      }
+
+      return cartesian(optionArrays).map(combo => {
+        const options = {}
+        combo.forEach(c => { options[c.name] = c.value })
+        return options
+      })
+    }
+  },
+  watch: {
+    generatedCombinations: {
+      handler(newCombos) {
+        const updated = newCombos.map(comboOpts => {
+          const key = JSON.stringify(comboOpts)
+          const existing = this.productCombinations.find(
+            pc => JSON.stringify(pc.options) === key
+          )
+          return existing
+            ? { ...existing }
+            : { options: comboOpts, price: Number(this.productForm.price) || 0, stock: 0 }
+        })
+        this.productCombinations = updated
+      },
+      deep: true
     }
   },
   async mounted() {
@@ -673,36 +728,70 @@ export default {
       try {
         const formData = new FormData()
         formData.append('name', this.productForm.name)
-        formData.append('price', this.productForm.price)
-        formData.append('stock', this.productForm.stock)
         formData.append('description', this.productForm.description)
         formData.append('category', this.productForm.category)
-        
-        // Append new image files
+
+        // Auto-calculate price & stock from combinations
+        if (this.productCombinations.length > 0) {
+          const prices = this.productCombinations.map(c => Number(c.price) || 0)
+          const stocks = this.productCombinations.map(c => Number(c.stock) || 0)
+          formData.append('price', Math.min(...prices))
+          formData.append('stock', stocks.reduce((a, b) => a + b, 0))
+        } else {
+          formData.append('price', 0)
+          formData.append('stock', 0)
+        }
+        // Append general product image files
         for (const file of this.imageFiles) {
           formData.append('images', file)
         }
-        
+
         // Send existing images for edit mode
         if (this.editingProduct && this.existingImages.length > 0) {
           formData.append('existingImages', JSON.stringify(this.existingImages))
         }
 
-        // Send variants if any
+        // Send variants with existing image paths
         if (this.variants.length > 0) {
           const cleanVariants = this.variants
             .filter(v => v.name && v.options.length > 0)
-            .map(v => ({
+            .map((v, vIdx) => ({
               name: v.name,
-              options: v.options.filter(o => o.value).map(o => ({
-                value: o.value,
-                priceModifier: Number(o.priceModifier) || 0,
-                stock: Number(o.stock) || 0
-              }))
+              options: v.options.filter(o => o.value).map((o, oIdx) => {
+                const opt = { value: o.value }
+                // If option has an existing image (not a new file), include path
+                if (o.image && !o.imageFile) {
+                  opt.image = o.image
+                }
+                return opt
+              })
             }))
             .filter(v => v.options.length > 0)
           if (cleanVariants.length > 0) {
             formData.append('variants', JSON.stringify(cleanVariants))
+          }
+
+          // Append option image files
+          this.variants.forEach((v, vIdx) => {
+            v.options.forEach((o, oIdx) => {
+              if (o.imageFile) {
+                formData.append(`optionImage_${vIdx}_${oIdx}`, o.imageFile)
+              }
+            })
+          })
+        }
+
+        // Send product combinations (price & stock per combination)
+        if (this.productCombinations.length > 0) {
+          const cleanCombinations = this.productCombinations
+            .filter(c => c.price > 0)
+            .map(c => ({
+              options: c.options,
+              price: Number(c.price) || 0,
+              stock: Number(c.stock) || 0
+            }))
+          if (cleanCombinations.length > 0) {
+            formData.append('productCombinations', JSON.stringify(cleanCombinations))
           }
         }
 
@@ -743,18 +832,23 @@ export default {
       } else {
         this.existingImages = []
       }
-      // Load existing variants
       if (product.variants && product.variants.length > 0) {
         this.variants = product.variants.map(v => ({
           name: v.name,
-          options: v.options.map(o => ({
-            value: o.value,
-            priceModifier: o.priceModifier || 0,
-            stock: o.stock || 0
-          }))
+          options: v.options.map(o => ({ value: o.value, image: o.image || '', imageFile: null, imagePreview: '' }))
         }))
       } else {
         this.variants = []
+      }
+      // Load existing combinations
+      if (product.productCombinations && product.productCombinations.length > 0) {
+        this.productCombinations = product.productCombinations.map(c => ({
+          options: c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {}),
+          price: c.price || 0,
+          stock: c.stock || 0
+        }))
+      } else {
+        this.productCombinations = []
       }
       this.activeTab = 'add-product'
     },
@@ -764,6 +858,7 @@ export default {
       this.imagePreviews = []
       this.existingImages = []
       this.variants = []
+      this.productCombinations = []
       this.productForm = {
         name: '',
         price: '',
@@ -817,17 +912,41 @@ export default {
     addVariantGroup() {
       this.variants.push({
         name: '',
-        options: [{ value: '', priceModifier: 0, stock: 0 }]
+        options: [{ value: '', image: '', imageFile: null, imagePreview: '' }]
       })
     },
     removeVariantGroup(index) {
       this.variants.splice(index, 1)
     },
     addVariantOption(variantIndex) {
-      this.variants[variantIndex].options.push({ value: '', priceModifier: 0, stock: 0 })
+      this.variants[variantIndex].options.push({ value: '', image: '', imageFile: null, imagePreview: '' })
     },
     removeVariantOption(variantIndex, optionIndex) {
       this.variants[variantIndex].options.splice(optionIndex, 1)
+    },
+    handleOptionImageSelect(vIndex, oIndex, event) {
+      const file = event.target.files[0]
+      if (!file) return
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+      if (!allowedTypes.includes(file.type)) {
+        this.$toast.error('Only JPEG, PNG, WebP, GIF are supported')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        this.$toast.error('Image must be under 5MB')
+        return
+      }
+      const opt = this.variants[vIndex].options[oIndex]
+      opt.imageFile = file
+      const reader = new FileReader()
+      reader.onload = (e) => { opt.imagePreview = e.target.result }
+      reader.readAsDataURL(file)
+    },
+    removeOptionImage(vIndex, oIndex) {
+      const opt = this.variants[vIndex].options[oIndex]
+      opt.image = ''
+      opt.imageFile = null
+      opt.imagePreview = ''
     },
     async deleteProduct(productId) {
       if (confirm('Are you sure you want to delete this product?')) {

@@ -77,7 +77,18 @@
                       <div class="cart-item-details p-3">
                         <h6 class="fw-bold mb-1">{{ item.name }}</h6>
                         <p class="text-muted mb-1 small">{{ item.category || 'Uncategorized' }}</p>
-                        <div class="text-warning mb-2">
+                        <!-- Selected Options -->
+                        <div v-if="item.selectedOptions && Object.keys(item.selectedOptions).length > 0" class="mb-2">
+                          <span 
+                            v-for="(value, key) in item.selectedOptions" 
+                            :key="key" 
+                            class="badge bg-light text-dark border me-1 mb-1"
+                            style="font-size: 0.75rem;"
+                          >
+                            {{ key }}: {{ value }}
+                          </span>
+                        </div>
+                        <div v-else class="text-warning mb-2">
                           <i class="bi bi-star-fill"></i>
                           <i class="bi bi-star-fill"></i>
                           <i class="bi bi-star-fill"></i>

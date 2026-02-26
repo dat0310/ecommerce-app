@@ -293,7 +293,9 @@
                       <div class="d-flex justify-content-between">
                         <div>
                           <h6 class="mb-1 text-dark">{{ product.productName || product.name || 'Product Name' }}</h6>
-                          <div class="text-muted small mb-1">Variation: Default</div>
+                          <div v-if="product.selectedOptions && Object.keys(product.selectedOptions).length > 0" class="text-muted small mb-1">
+                            <span v-for="(value, key) in product.selectedOptions" :key="key" class="me-2">{{ key }}: {{ value }}</span>
+                          </div>
                           <div class="text-dark small">x{{ product.quantity }}</div>
                         </div>
                         <div class="text-end d-flex flex-column align-items-end gap-1">

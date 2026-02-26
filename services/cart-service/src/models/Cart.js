@@ -7,7 +7,8 @@ const cartItemSchema = new mongoose.Schema({
     image: { type: String, default: '' },
     quantity: { type: Number, default: 1, min: 1 },
     sellerId: { type: String, required: true },
-    sellerName: { type: String, required: true }
+    sellerName: { type: String, required: true },
+    selectedOptions: { type: Map, of: String, default: {} }
 }, { _id: false });
 
 const cartSchema = new mongoose.Schema({

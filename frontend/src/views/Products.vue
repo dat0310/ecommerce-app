@@ -80,7 +80,7 @@
             :data-aos-delay="100 * (index % 3)"
           >
             <!-- Grid View -->
-            <div v-if="viewMode === 'grid'" class="card product-card h-100">
+            <div v-if="viewMode === 'grid'" class="card product-card h-100" @click="$router.push('/products/' + product._id)" style="cursor: pointer;">
               <div class="position-relative overflow-hidden">
                 <img 
                   :src="(product.images && product.images[0]) || product.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'" 
@@ -120,39 +120,19 @@
                 <h5 class="card-title fw-bold">{{ product.name }}</h5>
                 <p class="card-text text-muted flex-grow-1">{{ truncateText(product.description, 100) }}</p>
                 
-                <div class="d-flex align-items-center justify-content-between mb-3">
+                <div class="d-flex align-items-center justify-content-between">
                   <div>
-                    <span class="h4 fw-bold text-primary mb-0">${{ product.price }}</span>
+                    <span class="h4 fw-bold text-primary mb-0">{{ getDisplayPrice(product) }}</span>
                   </div>
                   <div class="text-end">
                     <small class="text-muted d-block">Stock: {{ product.stock || 0 }}</small>
                   </div>
                 </div>
               </div>
-              
-              <div class="card-footer bg-transparent border-0 p-3">
-                <div class="d-grid gap-2">
-                  <router-link 
-                    :to="'/products/' + product._id" 
-                    class="btn btn-primary hover-lift"
-                  >
-                    <i class="bi bi-eye me-2"></i>
-                    View Details
-                  </router-link>
-                  <button 
-                    @click="handleAddToCart(product)" 
-                    class="btn btn-outline-primary hover-lift"
-                    :disabled="product.stock === 0"
-                  >
-                    <i class="bi bi-cart-plus me-2"></i>
-                    {{ product.stock > 0 ? 'Add to Cart' : 'Out of Stock' }}
-                  </button>
-                </div>
-              </div>
             </div>
 
             <!-- List View -->
-            <div v-else class="card product-list-card">
+            <div v-else class="card product-list-card" @click="$router.push('/products/' + product._id)" style="cursor: pointer;">
               <div class="row g-0">
                 <div class="col-md-3">
                   <img 
@@ -172,7 +152,7 @@
                     
                     <div class="d-flex align-items-center justify-content-between">
                       <div>
-                        <span class="h4 fw-bold text-primary mb-0">${{ product.price }}</span>
+                        <span class="h4 fw-bold text-primary mb-0">{{ getDisplayPrice(product) }}</span>
                         <small class="text-muted d-block">Free shipping</small>
                       </div>
                       <div class="d-flex align-items-center gap-3">
@@ -184,23 +164,7 @@
                           <i class="bi bi-star-fill"></i>
                           <small class="text-muted ms-1">(4.8)</small>
                         </div>
-                        <div class="d-flex gap-2">
-                          <router-link 
-                            :to="'/products/' + product._id" 
-                            class="btn btn-primary btn-sm"
-                          >
-                            <i class="bi bi-eye me-1"></i>
-                            View
-                          </router-link>
-                          <button 
-                            @click="handleAddToCart(product)" 
-                            class="btn btn-outline-primary btn-sm"
-                            :disabled="product.stock === 0"
-                          >
-                            <i class="bi bi-cart-plus me-1"></i>
-                            Add
-                          </button>
-                        </div>
+                        <small class="text-muted">Stock: {{ product.stock || 0 }}</small>
                       </div>
                     </div>
                   </div>
@@ -354,6 +318,9 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart', 'updateSearchQuery']),
+    hasVariants(product) {
+      return product && product.variants && product.variants.length > 0
+    },
     handleAddToCart(product) {
       if (!product || product.stock === 0) return
       if (!this.isAuthenticated) {
@@ -362,6 +329,10 @@ export default {
           timeout: 3000
         })
         this.$router.push('/login')
+        return
+      }
+      if (this.hasVariants(product)) {
+        this.$router.push('/products/' + product._id)
         return
       }
       this.addToCart(product)
@@ -413,6 +384,16 @@ export default {
         return text.substring(0, length) + '...'
       }
       return text
+    },
+    getDisplayPrice(product) {
+      if (product.productCombinations && product.productCombinations.length > 0) {
+        const prices = product.productCombinations.map(c => c.price)
+        const minPrice = Math.min(...prices)
+        const maxPrice = Math.max(...prices)
+        if (minPrice === maxPrice) return `$${minPrice}`
+        return `$${minPrice} - $${maxPrice}`
+      }
+      return `$${product.price}`
     },
     sortProducts(products) {
       const sorted = [...products]

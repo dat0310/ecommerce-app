@@ -8,7 +8,10 @@ const mapCartItemsFromApi = (items = []) => items.map(i => ({
   image: i.image,
   quantity: i.quantity,
   sellerId: i.sellerId,
-  sellerName: i.sellerName
+  sellerName: i.sellerName,
+  selectedOptions: i.selectedOptions instanceof Map
+    ? Object.fromEntries(i.selectedOptions)
+    : (i.selectedOptions || {})
 }));
 
 export default createStore({
@@ -46,14 +49,18 @@ export default createStore({
       delete axios.defaults.headers.common['Authorization']
     },
     ADD_TO_CART(state, product) {
-      const existingItem = state.cart.find(item => item._id === product._id)
-      
+      const optionsKey = JSON.stringify(product.selectedOptions || {})
+      const existingItem = state.cart.find(item => {
+        const itemKey = JSON.stringify(item.selectedOptions || {})
+        return item._id === product._id && itemKey === optionsKey
+      })
+
       if (existingItem) {
         existingItem.quantity += 1
       } else {
-        state.cart.push({ ...product, quantity: 1 })
+        state.cart.push({ ...product, quantity: 1, selectedOptions: product.selectedOptions || {} })
       }
-      
+
       localStorage.setItem('cart', JSON.stringify(state.cart))
     },
     REMOVE_FROM_CART(state, productId) {
@@ -137,7 +144,11 @@ export default createStore({
         commit('ADD_TO_CART', product)
         return
       }
-      const response = await axios.post('/api/cart/items', { productId: product._id, quantity: 1 })
+      const response = await axios.post('/api/cart/items', {
+        productId: product._id,
+        quantity: 1,
+        selectedOptions: product.selectedOptions || {}
+      })
       commit('SET_CART', mapCartItemsFromApi(response.data.items || []))
     },
     async removeFromCart({ commit, state }, productId) {
@@ -145,8 +156,17 @@ export default createStore({
         commit('REMOVE_FROM_CART', productId)
         return
       }
-      const response = await axios.delete(`/api/cart/items/${productId}`)
-      commit('SET_CART', mapCartItemsFromApi(response.data.items || []))
+      try {
+        const response = await axios.delete(`/api/cart/items/${productId}`)
+        commit('SET_CART', mapCartItemsFromApi(response.data.items || []))
+      } catch (error) {
+        // If item not found (404), just remove locally
+        if (error.response && error.response.status === 404) {
+          commit('REMOVE_FROM_CART', productId)
+        } else {
+          throw error
+        }
+      }
     },
     async updateCartItemQuantity({ commit, state }, { productId, quantity }) {
       if (!state.token) {

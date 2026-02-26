@@ -1,13 +1,9 @@
 const cartRepository = require('../repositories/cartRepository');
 const axios = require('axios');
-const Cart = require('../models/Cart'); // Needed for new Cart() if repo doesn't handle creation well (repo handles upsert)
 
 class CartService {
     async fetchProduct(productId, authHeader) {
-        // Call product-service directly inside docker network
         try {
-            // If authHeader is needed by product-service (e.g. for pending/unapproved check?), pass it.
-            // Usually standard approved products are public.
             const { data } = await axios.get(`http://product-service:3001/api/products/${productId}`, {
                 headers: authHeader ? { Authorization: authHeader } : undefined
             });
@@ -16,6 +12,25 @@ class CartService {
             console.error(`Error fetching product ${productId}:`, error.message);
             return null;
         }
+    }
+
+    findCombinationPrice(product, selectedOptions) {
+        if (!selectedOptions || Object.keys(selectedOptions).length === 0) {
+            return { price: product.price, stock: product.stock };
+        }
+        if (!product.productCombinations || product.productCombinations.length === 0) {
+            return { price: product.price, stock: product.stock };
+        }
+
+        const combo = product.productCombinations.find(c => {
+            const opts = c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {});
+            return Object.keys(selectedOptions).every(k => opts[k] === selectedOptions[k]);
+        });
+
+        if (combo) {
+            return { price: combo.price, stock: combo.stock };
+        }
+        return { price: product.price, stock: product.stock };
     }
 
     async getCart(userId) {
@@ -28,55 +43,62 @@ class CartService {
         for (const item of items) {
             const p = await this.fetchProduct(item.productId, authHeader);
             if (!p || p.stock <= 0) continue;
-            const qty = Math.max(1, Math.min(item.quantity || 1, p.stock));
+
+            const selectedOptions = item.selectedOptions || {};
+            const { price, stock } = this.findCombinationPrice(p, selectedOptions);
+            const qty = Math.max(1, Math.min(item.quantity || 1, stock));
+
             validatedItems.push({
                 productId: p._id,
                 name: p.name,
-                price: p.price,
+                price,
                 image: p.image,
                 quantity: qty,
                 sellerId: p.sellerId,
-                sellerName: p.sellerName
+                sellerName: p.sellerName,
+                selectedOptions
             });
         }
         return await cartRepository.createOrUpdate(userId, validatedItems);
     }
 
-    async addItem(userId, productId, quantity, authHeader) {
+    async addItem(userId, productId, quantity, authHeader, selectedOptions = {}) {
         const product = await this.fetchProduct(productId, authHeader);
         if (!product || product.stock <= 0) {
             throw new Error('Product not available');
         }
 
+        const { price, stock } = this.findCombinationPrice(product, selectedOptions);
+        if (stock <= 0) {
+            throw new Error('Selected variant is out of stock');
+        }
+
         let cart = await cartRepository.findByUserId(userId);
         if (!cart) {
-            // Create empty cart object (not saved yet logic usually, but repo has upsert)
-            // We can use repo findByUserId which returns null, so we construct.
-            // Actually, easier to let repo handle "get or create" or logic here.
-            // Let's rely on Mongoose document nature if we got one, else new.
-            // But repo.findByUserId returns a document.
-            // If null, we create new Cart model logic here or we can use repo.
-            // To simplify, let's just create new instance if needed.
-            // We need `new Cart` but that requires importing Model in Service?
-            // Better: abstract "getOrCreate" in Repo?
-            // Or just:
             cart = new (require('../models/Cart'))({ userId, items: [] });
         }
 
-        const existing = cart.items.find(i => i.productId === product._id);
-        const newQty = Math.max(1, Math.min((existing?.quantity || 0) + (quantity || 1), product.stock));
+        const optionsKey = JSON.stringify(selectedOptions);
+        const existing = cart.items.find(i => {
+            const itemOpts = i.selectedOptions instanceof Map
+                ? JSON.stringify(Object.fromEntries(i.selectedOptions))
+                : JSON.stringify(i.selectedOptions || {});
+            return i.productId === product._id && itemOpts === optionsKey;
+        });
 
         if (existing) {
-            existing.quantity = newQty;
+            existing.quantity = Math.min(existing.quantity + (quantity || 1), stock);
+            existing.price = price;
         } else {
             cart.items.push({
                 productId: product._id,
                 name: product.name,
-                price: product.price,
+                price,
                 image: product.image,
-                quantity: Math.min(quantity || 1, product.stock),
+                quantity: Math.min(quantity || 1, stock),
                 sellerId: product.sellerId,
-                sellerName: product.sellerName
+                sellerName: product.sellerName,
+                selectedOptions
             });
         }
 
@@ -94,10 +116,15 @@ class CartService {
         const item = cart.items.find(i => i.productId === product._id);
         if (!item) throw new Error('Item not found in cart');
 
+        const selectedOptions = item.selectedOptions instanceof Map
+            ? Object.fromEntries(item.selectedOptions)
+            : (item.selectedOptions || {});
+        const { stock } = this.findCombinationPrice(product, selectedOptions);
+
         if (quantity <= 0) {
             cart.items = cart.items.filter(i => i.productId !== product._id);
         } else {
-            item.quantity = Math.min(quantity, product.stock);
+            item.quantity = Math.min(quantity, stock);
         }
 
         cart.updatedAt = Date.now();

@@ -25,13 +25,15 @@ class CartController {
 
     async addItem(req, res) {
         try {
-            const { productId, quantity } = req.body;
+            const { productId, quantity, selectedOptions } = req.body;
             if (!productId) return res.status(400).json({ message: 'productId is required' });
 
-            const cart = await cartService.addItem(req.user.id, productId, quantity, req.header('Authorization'));
+            const cart = await cartService.addItem(req.user.id, productId, quantity, req.header('Authorization'), selectedOptions || {});
             res.status(201).json(cart);
         } catch (error) {
-            if (error.message === 'Product not available') return res.status(400).json({ message: error.message });
+            if (error.message === 'Product not available' || error.message === 'Selected variant is out of stock') {
+                return res.status(400).json({ message: error.message });
+            }
             res.status(400).json({ error: { message: error.message } });
         }
     }

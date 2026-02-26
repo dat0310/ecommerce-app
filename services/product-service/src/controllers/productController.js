@@ -55,13 +55,55 @@ class ProductController {
     async createProduct(req, res) {
         try {
             const productData = req.body;
+
+            // Separate product images from option images
+            const productImages = [];
+            const optionImageMap = {};
+
             if (req.files && req.files.length > 0) {
-                const imagePaths = req.files.map(f => `/uploads/${f.filename}`);
-                productData.images = imagePaths;
-                productData.image = imagePaths[0];
+                for (const file of req.files) {
+                    const filePath = `/uploads/${file.filename}`;
+                    if (file.fieldname.startsWith('optionImage_')) {
+                        optionImageMap[file.fieldname] = filePath;
+                    } else {
+                        productImages.push(filePath);
+                    }
+                }
             }
+
+            if (productImages.length > 0) {
+                productData.images = productImages;
+                productData.image = productImages[0];
+            }
+
             if (productData.variants) {
                 productData.variants = JSON.parse(productData.variants);
+                // Assign option images
+                productData.variants.forEach((variant, vIdx) => {
+                    variant.options.forEach((opt, oIdx) => {
+                        const key = `optionImage_${vIdx}_${oIdx}`;
+                        if (optionImageMap[key]) {
+                            opt.image = optionImageMap[key];
+                        }
+                    });
+                });
+                // Auto-populate product images from option images if no product images uploaded
+                if (productImages.length === 0) {
+                    const allOptionImages = [];
+                    productData.variants.forEach(v => {
+                        v.options.forEach(o => {
+                            if (o.image) allOptionImages.push(o.image);
+                        });
+                    });
+                    if (allOptionImages.length > 0) {
+                        productData.images = allOptionImages;
+                        productData.image = allOptionImages[0];
+                    }
+                }
+            }
+
+            if (productData.productCombinations) {
+                productData.productCombinations = JSON.parse(productData.productCombinations);
             }
             const product = await productService.createProduct(productData, req.user, req.header('Authorization'));
             res.status(201).json(product);
@@ -73,13 +115,27 @@ class ProductController {
     async updateProduct(req, res) {
         try {
             const updateData = req.body;
+
+            const productImages = [];
+            const optionImageMap = {};
+
             if (req.files && req.files.length > 0) {
-                const imagePaths = req.files.map(f => `/uploads/${f.filename}`);
+                for (const file of req.files) {
+                    const filePath = `/uploads/${file.filename}`;
+                    if (file.fieldname.startsWith('optionImage_')) {
+                        optionImageMap[file.fieldname] = filePath;
+                    } else {
+                        productImages.push(filePath);
+                    }
+                }
+            }
+
+            if (productImages.length > 0) {
                 if (updateData.existingImages) {
                     const existing = JSON.parse(updateData.existingImages);
-                    updateData.images = [...existing, ...imagePaths];
+                    updateData.images = [...existing, ...productImages];
                 } else {
-                    updateData.images = imagePaths;
+                    updateData.images = productImages;
                 }
                 updateData.image = updateData.images[0];
                 delete updateData.existingImages;
@@ -88,8 +144,34 @@ class ProductController {
                 updateData.image = updateData.images[0] || '';
                 delete updateData.existingImages;
             }
+
             if (updateData.variants) {
                 updateData.variants = JSON.parse(updateData.variants);
+                updateData.variants.forEach((variant, vIdx) => {
+                    variant.options.forEach((opt, oIdx) => {
+                        const key = `optionImage_${vIdx}_${oIdx}`;
+                        if (optionImageMap[key]) {
+                            opt.image = optionImageMap[key];
+                        }
+                    });
+                });
+                // Auto-populate product images from options
+                if (productImages.length === 0 && !updateData.existingImages) {
+                    const allOptionImages = [];
+                    updateData.variants.forEach(v => {
+                        v.options.forEach(o => {
+                            if (o.image) allOptionImages.push(o.image);
+                        });
+                    });
+                    if (allOptionImages.length > 0) {
+                        updateData.images = allOptionImages;
+                        updateData.image = allOptionImages[0];
+                    }
+                }
+            }
+
+            if (updateData.productCombinations) {
+                updateData.productCombinations = JSON.parse(updateData.productCombinations);
             }
             const product = await productService.updateProduct(req.params.id, updateData, req.user);
             res.json(product);
@@ -126,11 +208,11 @@ class ProductController {
     }
     async reduceStock(req, res) {
         try {
-            const { quantity } = req.body;
+            const { quantity, selectedOptions } = req.body;
             if (!quantity || quantity <= 0) {
                 return res.status(400).json({ message: 'Invalid quantity' });
             }
-            const product = await productService.reduceStock(req.params.id, quantity);
+            const product = await productService.reduceStock(req.params.id, quantity, selectedOptions);
             res.json({ message: 'Stock reduced successfully', product });
         } catch (error) {
             console.error('Error reducing stock:', error);
@@ -142,11 +224,11 @@ class ProductController {
     }
     async restoreStock(req, res) {
         try {
-            const { quantity } = req.body;
+            const { quantity, selectedOptions } = req.body;
             if (!quantity || quantity <= 0) {
                 return res.status(400).json({ message: 'Invalid quantity' });
             }
-            const product = await productService.restoreStock(req.params.id, quantity);
+            const product = await productService.restoreStock(req.params.id, quantity, selectedOptions);
             res.json({ message: 'Stock restored successfully', product });
         } catch (error) {
             res.status(500).json({ message: error.message });
