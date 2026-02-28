@@ -113,6 +113,21 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/coindb
       - JWT_SECRET=supersecretjwtkey
 
+  # Chat Service
+  chat-service:
+    build: ./services/chat-service
+    ports:
+      - "3009:3009"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/chatdb
+      - JWT_SECRET=supersecretjwtkey
+    depends_on:
+      - mongo
+    volumes:
+      - chat-uploads:/app/public/uploads
+    networks:
+      - ecommerce-network
+
   # API Gateway
   api-gateway:
     build: ./services/api-gateway
@@ -127,6 +142,7 @@ services:
       - voucher-service
       - my-purchase-service
       - shophubcoin-service
+      - chat-service
     networks:
       - ecommerce-network
 
@@ -148,6 +164,7 @@ services:
 volumes:
   mongo_data:
   product-uploads:
+  chat-uploads:
 
 
 networks:

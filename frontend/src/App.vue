@@ -116,6 +116,9 @@
       <router-view/>
     </main>
 
+    <!-- Chat Widget -->
+    <ChatWidget v-if="isAuthenticated" ref="globalChat" />
+
     <!-- Modern Footer -->
     <footer class="footer bg-dark text-light py-5 mt-5">
       <div class="container">
@@ -182,9 +185,11 @@
 
 <script>
 import { mapGetters, mapActions } from 'vuex'
+import ChatWidget from './components/ChatWidget.vue'
 
 export default {
   name: 'App',
+  components: { ChatWidget },
   data() {
     return {
       searchQueryModel: '',
@@ -236,6 +241,16 @@ export default {
       localStorage.setItem('wishlist', JSON.stringify(next))
       this.wishlistItems = next
       this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1500 })
+    },
+    handleOpenSellerChat(e) {
+      const { sellerId, sellerName, productContext } = e.detail
+      const chat = this.$refs.globalChat
+      if (chat) {
+        chat.currentProductContext = productContext || null
+        chat.showProductCard = !!productContext
+        chat.isOpen = true
+        chat.startConversationWith(sellerId, sellerName)
+      }
     }
   },
   watch: {
@@ -270,6 +285,11 @@ export default {
     })
     // react to in-tab updates from components
     window.addEventListener('wishlist-updated', this.loadWishlist)
+    // listen for seller chat open from product pages
+    window.addEventListener('open-seller-chat', this.handleOpenSellerChat)
+  },
+  beforeUnmount() {
+    window.removeEventListener('open-seller-chat', this.handleOpenSellerChat)
   }
 }
 </script>

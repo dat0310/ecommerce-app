@@ -50,6 +50,15 @@
                   <i class="bi bi-bag me-3"></i>
                   <span>Orders</span>
                 </a>
+                <a 
+                  class="nav-link seller-nav-link"
+                  :class="{ active: activeTab === 'chat' }"
+                  @click="activeTab = 'chat'"
+                  href="#"
+                >
+                  <i class="bi bi-chat-dots me-3"></i>
+                  <span>Chat</span>
+                </a>
               </nav>
             </div>
           </div>
@@ -583,12 +592,24 @@
                               >
                                 Accept Order
                               </button>
-                              <button class="btn btn-outline-secondary px-4">Contact Buyer</button>
+                              <button class="btn btn-outline-secondary px-4" @click="activeTab = 'chat'">
+                                <i class="bi bi-chat-dots me-1"></i>Contact Buyer
+                              </button>
                            </div>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat -->
+            <div v-if="activeTab === 'chat'" class="chat-management">
+              <h2 class="mb-4"><i class="bi bi-chat-dots me-2"></i>Customer Messages</h2>
+              <div class="card">
+                <div class="card-body p-0" style="height: 600px;">
+                  <ChatWidget ref="sellerChat" :embedded="true" />
                 </div>
               </div>
             </div>
@@ -601,9 +622,11 @@
 
 <script>
 import axios from 'axios'
+import ChatWidget from '@/components/ChatWidget.vue'
 
 export default {
   name: 'SellerDashboard',
+  components: { ChatWidget },
   data() {
     return {
       activeTab: 'dashboard',

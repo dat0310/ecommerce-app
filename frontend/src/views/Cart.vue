@@ -76,7 +76,7 @@
                     <div class="col-md-3">
                       <div class="cart-item-details p-3">
                         <h6 class="fw-bold mb-1">{{ item.name }}</h6>
-                        <p class="text-muted mb-1 small">{{ item.category || 'Uncategorized' }}</p>
+                        <p class="text-muted mb-1 small">{{ item.category || 'General' }}</p>
                         <!-- Selected Options -->
                         <div v-if="item.selectedOptions && Object.keys(item.selectedOptions).length > 0" class="mb-2">
                           <span 
@@ -113,12 +113,12 @@
                           </button>
                           <input 
                             type="number" 
-                            v-model.number="item.quantity" 
-                            @change="updateQuantity(item._id, item.quantity)"
+                            :value="item.quantity" 
+                            @change="updateQuantity(item._id, parseInt($event.target.value) || 1)"
                             min="1" 
                             :max="item.stock || 99" 
                             class="form-control text-center mx-2" 
-                            style="width: 80px;"
+                            style="width: 70px;"
                           >
                           <button 
                             @click="updateQuantity(item._id, item.quantity + 1)"
@@ -128,7 +128,7 @@
                             <i class="bi bi-plus"></i>
                           </button>
                         </div>
-                        <small class="text-muted">Max: {{ item.stock || 99 }}</small>
+                        <small class="text-muted mt-1 d-block">Available: {{ item.stock || 99 }}</small>
                       </div>
                     </div>
                     

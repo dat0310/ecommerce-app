@@ -193,8 +193,17 @@
                   <i class="bi bi-arrow-left me-2"></i>
                   Back to Products
                 </button>
+                <button
+                  v-if="product.sellerId && isAuthenticated && !isOwnProduct"
+                  @click="chatWithSeller"
+                  class="btn btn-outline-info hover-lift"
+                >
+                  <i class="bi bi-chat-dots me-2"></i>
+                  Chat with Seller
+                </button>
               </div>
             </div>
+
 
             <!-- Product Features -->
             <div class="product-features mt-5">
@@ -412,6 +421,20 @@ export default {
       if (!this.currentUser || !this.reviews.length) return []
       const userId = this.currentUser._id || this.currentUser.id
       return this.reviews.filter(r => r.userId === userId)
+    },
+    isOwnProduct() {
+      if (!this.currentUser || !this.product.sellerId) return false
+      const userId = this.currentUser._id || this.currentUser.id
+      return this.product.sellerId === userId
+    },
+    chatProductContext() {
+      if (!this.product) return null
+      return {
+        productId: this.product._id,
+        name: this.product.name,
+        image: (this.product.images && this.product.images[0]) || this.product.image || '',
+        price: this.product.price
+      }
     }
   },
   async created() {
@@ -434,6 +457,15 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
+    chatWithSeller() {
+      window.dispatchEvent(new CustomEvent('open-seller-chat', {
+        detail: {
+          sellerId: this.product.sellerId,
+          sellerName: this.shopDisplayName,
+          productContext: this.chatProductContext
+        }
+      }))
+    },
     selectVariant(groupName, value, optImage) {
       if (this.selectedVariants[groupName] === value) {
         const updated = { ...this.selectedVariants }

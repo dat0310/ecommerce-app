@@ -6,6 +6,8 @@ const mapCartItemsFromApi = (items = []) => items.map(i => ({
   name: i.name,
   price: i.price,
   image: i.image,
+  category: i.category || '',
+  stock: i.stock || 99,
   quantity: i.quantity,
   sellerId: i.sellerId,
   sellerName: i.sellerName,
@@ -169,12 +171,14 @@ export default createStore({
       }
     },
     async updateCartItemQuantity({ commit, state }, { productId, quantity }) {
-      if (!state.token) {
-        commit('UPDATE_CART_ITEM_QUANTITY', { productId, quantity })
-        return
+      commit('UPDATE_CART_ITEM_QUANTITY', { productId, quantity })
+      if (!state.token) return
+      try {
+        const response = await axios.patch(`/api/cart/items/${productId}`, { quantity })
+        commit('SET_CART', mapCartItemsFromApi(response.data.items || []))
+      } catch (err) {
+        console.error('Failed to update cart on server:', err)
       }
-      const response = await axios.patch(`/api/cart/items/${productId}`, { quantity })
-      commit('SET_CART', mapCartItemsFromApi(response.data.items || []))
     },
     async clearCart({ commit, state }) {
       if (state.token) {

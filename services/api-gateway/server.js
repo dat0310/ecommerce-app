@@ -41,6 +41,33 @@ app.use('/api/vouchers', createProxyMiddleware({
 app.use('/api/coins', createProxyMiddleware({ target: process.env.SHOPHUBCOIN_SERVICE_URL || 'http://shophubcoin-service:3008', changeOrigin: true, pathRewrite: { '^/api/coins': '/' } }));
 app.use('/api/users/me/orders', createProxyMiddleware({ target: process.env.USER_SERVICE_URL || 'http://user-service:3002', changeOrigin: true }));
 
+// Chat Service proxy (REST)
+app.use('/api/chat', createProxyMiddleware({
+  target: process.env.CHAT_SERVICE_URL || 'http://chat-service:3009',
+  changeOrigin: true,
+  onProxyReq: (proxyReq, req, res) => {
+    if (req.headers.authorization) {
+      proxyReq.setHeader('Authorization', req.headers.authorization);
+    }
+  }
+}));
+
+// Chat Service uploaded files proxy
+app.use('/chat-uploads', createProxyMiddleware({
+  target: process.env.CHAT_SERVICE_URL || 'http://chat-service:3009',
+  changeOrigin: true,
+  pathRewrite: { '^/chat-uploads': '/uploads' }
+}));
+
+// Socket.io WebSocket proxy
+const chatSocketProxy = createProxyMiddleware({
+  target: process.env.CHAT_SERVICE_URL || 'http://chat-service:3009',
+  changeOrigin: true,
+  ws: true,
+  pathFilter: '/socket.io'
+})
+app.use('/socket.io', chatSocketProxy);
+
 
 // Swagger configuration
 const swaggerOptions = {
@@ -560,6 +587,15 @@ app.get('/health', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = require('http').createServer(app);
+
+// Handle WebSocket upgrade for Socket.io
+server.on('upgrade', (req, socket, head) => {
+  if (req.url.startsWith('/socket.io')) {
+    chatSocketProxy.upgrade(req, socket, head);
+  }
+});
+
+server.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);
 });
