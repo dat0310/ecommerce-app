@@ -20,6 +20,7 @@ services:
       - JWT_SECRET=supersecretjwtkey
       - JWT_EXPIRE=7d
       - ORDER_SERVICE_URL=http://order-service:3003
+      - COIN_SERVICE_URL=http://shophubcoin-service:3008
     depends_on:
       - mongo
     volumes:
@@ -52,6 +53,8 @@ services:
       - JWT_SECRET=supersecretjwtkey
       - USER_SERVICE_URL=http://user-service:3002
       - PRODUCT_SERVICE_URL=http://product-service:3001
+      - COIN_SERVICE_URL=http://shophubcoin-service:3008
+      - VOUCHER_SERVICE_URL=http://voucher-service:3007
     depends_on:
       - mongo
     networks:

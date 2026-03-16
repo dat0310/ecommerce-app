@@ -9,7 +9,7 @@
           <i class="bi bi-heart display-1 text-muted"></i>
           <h3 class="mt-3">Your wishlist is empty</h3>
           <p class="text-muted">Browse our products and add items to your wishlist!</p>
-          <router-link to="/products" class="btn btn-primary">
+          <router-link to="/" class="btn btn-primary">
             Browse Products
           </router-link>
         </div>

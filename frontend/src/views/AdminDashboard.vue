@@ -59,6 +59,16 @@
                   <i class="bi bi-ticket-percent me-3"></i>
                   <span>Vouchers</span>
                 </a>
+                <a 
+                  class="nav-link admin-nav-link" 
+                  :class="{ active: activeTab === 'disputes' }"
+                  @click="activeTab = 'disputes'"
+                  href="#"
+                >
+                  <i class="bi bi-shield-exclamation me-3"></i>
+                  <span>Disputes</span>
+                  <span v-if="openDisputes.length > 0" class="badge bg-danger ms-auto">{{ openDisputes.length }}</span>
+                </a>
               </nav>
             </div>
           </div>
@@ -104,10 +114,10 @@
                     <div class="card-body">
                       <div class="d-flex justify-content-between">
                         <div>
-                          <h4>{{ pendingProducts.length }}</h4>
-                          <p class="mb-0">Refund Requests</p>
+                          <h4>{{ openDisputes.length }}</h4>
+                          <p class="mb-0">Open Disputes</p>
                         </div>
-                        <i class="bi bi-arrow-counterclockwise fs-1"></i>
+                        <i class="bi bi-shield-exclamation fs-1"></i>
                       </div>
                     </div>
                   </div>
@@ -450,6 +460,12 @@
                       </div>
                       <div class="col-md-2">
                         <div class="mb-3">
+                          <label for="fee" class="form-label">Coin Fee</label>
+                          <input type="number" class="form-control" id="fee" title="Set to 0 for free voucher" v-model="newVoucher.fee" min="0" required>
+                        </div>
+                      </div>
+                      <div class="col-md-2">
+                        <div class="mb-3">
                           <label for="expiryDate" class="form-label">Expiry Date</label>
                           <input type="date" class="form-control" id="expiryDate" v-model="newVoucher.expiryDate" required>
                         </div>
@@ -475,6 +491,7 @@
                           <th>Code</th>
                           <th>Type</th>
                           <th>Value</th>
+                          <th>Fee (Coins)</th>
                           <th>Expiry Date</th>
                           <th>Status</th>
                           <th>Actions</th>
@@ -485,6 +502,7 @@
                           <td>{{ voucher.code }}</td>
                           <td>{{ voucher.discountType }}</td>
                           <td>{{ voucher.discountValue }}</td>
+                          <td>{{ voucher.fee || 0 }}</td>
                           <td>{{ formatDate(voucher.expiryDate) }}</td>
                           <td>
                             <span class="badge" :class="voucher.isActive ? 'bg-success' : 'bg-danger'">
@@ -507,7 +525,208 @@
               </div>
             </div>
 
+            <!-- Disputes Management -->
+            <div v-if="activeTab === 'disputes'" class="disputes-management">
+              <h2 class="mb-4">Disputes Management</h2>
+
+              <!-- Open Disputes -->
+              <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <h5 class="mb-0"><i class="bi bi-shield-exclamation text-warning me-2"></i>Open Disputes</h5>
+                  <span class="badge bg-danger">{{ openDisputes.length }} pending</span>
+                </div>
+                <div class="card-body">
+                  <div v-if="openDisputes.length === 0" class="text-center py-4">
+                    <i class="bi bi-check-circle text-success fs-1 d-block mb-2"></i>
+                    <p class="text-muted">No open disputes. All clear!</p>
+                  </div>
+                  <div v-else class="table-responsive">
+                    <table class="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Order #</th>
+                          <th>Buyer</th>
+                          <th>Seller</th>
+                          <th>Reason</th>
+                          <th>Amount</th>
+                          <th>Date</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="order in openDisputes" :key="order._id">
+                          <td>
+                            <span class="fw-bold">{{ order.orderNumber }}</span>
+                          </td>
+                          <td>{{ order.userEmail }}</td>
+                          <td>{{ order.products[0]?.sellerName || 'N/A' }}</td>
+                          <td>
+                            <span class="small">
+                              {{ order.refundInfo?.reason || 'Not specified' }}
+                            </span>
+                            <br>
+                            <span class="text-muted small" v-if="order.refundInfo?.description">
+                              {{ order.refundInfo.description.substring(0, 50) }}{{ order.refundInfo.description.length > 50 ? '...' : '' }}
+                            </span>
+                          </td>
+                          <td class="fw-bold text-danger">${{ order.totalAmount }}</td>
+                          <td class="small">{{ formatDate(order.refundInfo?.requestedAt || order.updatedAt) }}</td>
+                          <td>
+                            <button 
+                              class="btn btn-sm btn-primary me-1"
+                              @click="openDisputeResolveModal(order)"
+                            >
+                              <i class="bi bi-gavel me-1"></i>Resolve
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Resolved Disputes History -->
+              <div class="card">
+                <div class="card-header">
+                  <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Resolved Disputes</h5>
+                </div>
+                <div class="card-body">
+                  <div v-if="resolvedDisputes.length === 0" class="text-center py-4">
+                    <p class="text-muted">No resolved disputes yet.</p>
+                  </div>
+                  <div v-else class="table-responsive">
+                    <table class="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>Order #</th>
+                          <th>Buyer</th>
+                          <th>Amount</th>
+                          <th>Resolution</th>
+                          <th>Admin Note</th>
+                          <th>Resolved Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="order in resolvedDisputes" :key="order._id">
+                          <td>{{ order.orderNumber }}</td>
+                          <td>{{ order.userEmail }}</td>
+                          <td>${{ order.totalAmount }}</td>
+                          <td>
+                            <span v-if="order.refundInfo?.adminResolution === 'refund'" class="badge bg-success">Refund Approved</span>
+                            <span v-else class="badge bg-secondary">Refund Denied</span>
+                          </td>
+                          <td class="small">{{ order.refundInfo?.adminNote || '-' }}</td>
+                          <td class="small">{{ formatDate(order.refundInfo?.adminResolvedAt || order.updatedAt) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dispute Resolve Modal -->
+    <div v-if="showDisputeModal && disputeOrder" class="modal-overlay-admin" @click.self="closeDisputeModal">
+      <div class="modal-content-admin" style="max-width: 600px;">
+        <div class="modal-header-admin">
+          <h5 class="mb-0">
+            <i class="bi bi-gavel me-2"></i>Resolve Dispute
+          </h5>
+          <button class="btn-close" @click="closeDisputeModal"></button>
+        </div>
+        <div class="modal-body-admin" style="max-height: 70vh; overflow-y: auto;">
+          <!-- Order Info -->
+          <div class="p-3 bg-light rounded mb-3">
+            <div class="row">
+              <div class="col-6">
+                <div class="small text-muted">Order</div>
+                <div class="fw-bold">{{ disputeOrder.orderNumber }}</div>
+              </div>
+              <div class="col-6 text-end">
+                <div class="small text-muted">Amount</div>
+                <div class="fw-bold text-danger">${{ disputeOrder.totalAmount }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Buyer's Reason -->
+          <div class="mb-3">
+            <h6 class="fw-bold text-primary"><i class="bi bi-person me-1"></i>Buyer's Reason</h6>
+            <div class="p-3 border rounded">
+              <div><strong>Reason:</strong> {{ disputeOrder.refundInfo?.reason || 'Not specified' }}</div>
+              <div v-if="disputeOrder.refundInfo?.description" class="text-muted mt-1">{{ disputeOrder.refundInfo.description }}</div>
+            </div>
+          </div>
+
+          <!-- Seller's Response -->
+          <div class="mb-3">
+            <h6 class="fw-bold text-success"><i class="bi bi-shop me-1"></i>Seller's Response</h6>
+            <div class="p-3 border rounded">
+              <div>
+                <span class="badge bg-danger">Rejected</span>
+              </div>
+              <div v-if="disputeOrder.refundInfo?.sellerNote" class="text-muted mt-1">Note: {{ disputeOrder.refundInfo.sellerNote }}</div>
+              <div v-else class="text-muted mt-1">No note provided</div>
+            </div>
+          </div>
+
+          <!-- Products -->
+          <div class="mb-3">
+            <h6 class="fw-bold"><i class="bi bi-box me-1"></i>Products</h6>
+            <div v-for="product in disputeOrder.products" :key="product.productId" class="d-flex align-items-center p-2 border rounded mb-2">
+              <img :src="product.image || 'https://via.placeholder.com/40'" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+              <div class="flex-grow-1">
+                <div class="small fw-bold">{{ product.productName || 'Product' }}</div>
+                <div class="small text-muted">x{{ product.quantity }} • ${{ product.price }}</div>
+              </div>
+            </div>
+          </div>
+
+          <hr>
+
+          <!-- Admin Decision -->
+          <div class="mb-3">
+            <h6 class="fw-bold"><i class="bi bi-shield-check me-1"></i>Your Decision</h6>
+            <div class="d-flex gap-2 mb-3">
+              <button 
+                class="btn flex-grow-1"
+                :class="disputeResolution === 'refund' ? 'btn-success' : 'btn-outline-success'"
+                @click="disputeResolution = 'refund'"
+              >
+                <i class="bi bi-check-circle me-1"></i>Approve Refund
+              </button>
+              <button 
+                class="btn flex-grow-1"
+                :class="disputeResolution === 'reject' ? 'btn-danger' : 'btn-outline-danger'"
+                @click="disputeResolution = 'reject'"
+              >
+                <i class="bi bi-x-circle me-1"></i>Deny Refund
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Admin Note</label>
+            <textarea v-model="disputeNote" class="form-control" rows="3" placeholder="Explain your decision..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer-admin">
+          <button class="btn btn-outline-secondary" @click="closeDisputeModal">Cancel</button>
+          <button 
+            class="btn"
+            :class="disputeResolution === 'refund' ? 'btn-success' : 'btn-danger'"
+            :disabled="!disputeResolution || disputeSubmitting"
+            @click="submitDisputeResolution"
+          >
+            <span v-if="disputeSubmitting"><i class="bi bi-hourglass-split me-1"></i>Processing...</span>
+            <span v-else>Confirm Resolution</span>
+          </button>
         </div>
       </div>
     </div>
@@ -535,8 +754,15 @@ export default {
         code: '',
         discountType: 'percentage',
         discountValue: null,
+        fee: 0,
         expiryDate: ''
-      }
+      },
+      // Dispute Modal
+      showDisputeModal: false,
+      disputeOrder: null,
+      disputeResolution: '',
+      disputeNote: '',
+      disputeSubmitting: false
     }
   },
   computed: {
@@ -548,6 +774,15 @@ export default {
     },
     approvedProducts() {
       return this.allProducts.filter(product => product.status === 'approved')
+    },
+    openDisputes() {
+      return this.orders.filter(order => order.status === 'dispute_open')
+    },
+    resolvedDisputes() {
+      return this.orders.filter(order => 
+        (order.status === 'refund_approved' || order.status === 'dispute_resolved') 
+        && order.refundInfo?.adminResolution
+      )
     }
   },
   async mounted() {
@@ -670,7 +905,12 @@ export default {
         processing: 'bg-primary',
         shipped: 'bg-secondary',
         delivered: 'bg-success',
-        cancelled: 'bg-danger'
+        cancelled: 'bg-danger',
+        refund_requested: 'bg-warning',
+        refund_approved: 'bg-success',
+        refund_rejected: 'bg-danger',
+        dispute_open: 'bg-info',
+        dispute_resolved: 'bg-secondary'
       }
       return classes[status] || 'bg-secondary'
     },
@@ -694,6 +934,7 @@ export default {
           code: '',
           discountType: 'percentage',
           discountValue: null,
+          fee: 0,
           expiryDate: ''
         }
         this.$toast.success('Voucher created successfully')
@@ -724,6 +965,40 @@ export default {
     getSellerProductCount(sellerId) {
       if (!this.allProducts) return 0
       return this.allProducts.filter(p => p.sellerId === sellerId).length
+    },
+    // Dispute Resolution
+    openDisputeResolveModal(order) {
+      this.disputeOrder = order;
+      this.disputeResolution = '';
+      this.disputeNote = '';
+      this.showDisputeModal = true;
+    },
+    closeDisputeModal() {
+      this.showDisputeModal = false;
+      this.disputeOrder = null;
+      this.disputeResolution = '';
+      this.disputeNote = '';
+    },
+    async submitDisputeResolution() {
+      if (!this.disputeOrder || !this.disputeResolution) return;
+      this.disputeSubmitting = true;
+      try {
+        await axios.patch(`/api/orders/${this.disputeOrder._id}/resolve-dispute`, {
+          resolution: this.disputeResolution,
+          note: this.disputeNote
+        });
+        await this.loadOrders();
+        const msg = this.disputeResolution === 'refund' 
+          ? 'Dispute resolved - Refund approved for buyer' 
+          : 'Dispute resolved - Refund denied';
+        this.$toast.success(msg);
+        this.closeDisputeModal();
+      } catch (error) {
+        console.error('Error resolving dispute:', error);
+        this.$toast.error(error.response?.data?.message || 'Failed to resolve dispute');
+      } finally {
+        this.disputeSubmitting = false;
+      }
     }
   }
 }
@@ -806,5 +1081,62 @@ export default {
   background-color: #007bff;
   border-color: #007bff;
   color: white;
+}
+
+/* Dispute Resolution Modal */
+.modal-overlay-admin {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content-admin {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header-admin {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modal-body-admin {
+  padding: 1.5rem;
+}
+
+.modal-footer-admin {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e9ecef;
 }
 </style>

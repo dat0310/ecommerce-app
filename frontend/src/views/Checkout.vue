@@ -70,6 +70,40 @@
                   </div>
                 </div>
 
+                <!-- ShopHub Coin Discount -->
+                <div class="mb-3 p-3 border rounded bg-warning bg-opacity-10">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex align-items-center">
+                      <i class="bi bi-coin text-warning me-2 fs-5"></i>
+                      <strong>Use ShopHub Coins</strong>
+                    </div>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" v-model="useCoins" :disabled="availableCoins <= 0">
+                    </div>
+                  </div>
+                  <div v-if="useCoins" class="mt-2">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <input
+                        type="number"
+                        class="form-control form-control-sm"
+                        v-model.number="coinsToUse"
+                        :max="maxCoinsUsable"
+                        min="0"
+                        style="width: 140px;"
+                        placeholder="Coins"
+                      >
+                      <small class="text-muted">/ {{ availableCoins }} coins available</small>
+                    </div>
+                    <small class="text-success d-block">
+                      <i class="bi bi-check-circle me-1"></i>
+                      Discount: -${{ coinDiscountAmount.toFixed(2) }} (1000 coins = $1)
+                    </small>
+                  </div>
+                  <div v-else>
+                    <small class="text-muted">You have <strong>{{ availableCoins }}</strong> coins (1000 coins = $1 discount)</small>
+                  </div>
+                </div>
+
                 <div v-for="item in selectedItems" :key="item._id" class="d-flex justify-content-between mb-2">
                   <span>{{ item.name }} (x{{ item.quantity }})</span>
                   <span>${{ (item.price * item.quantity).toFixed(2) }}</span>
@@ -79,8 +113,12 @@
                   <span>${{ shippingCost.toFixed(2) }}</span>
                 </div>
                 <div v-if="discountAmount > 0" class="d-flex justify-content-between mb-2 text-success">
-                  <span>Discount</span>
+                  <span>Voucher Discount</span>
                   <span>-${{ discountAmount.toFixed(2) }}</span>
+                </div>
+                <div v-if="coinDiscountAmount > 0" class="d-flex justify-content-between mb-2 text-warning">
+                  <span><i class="bi bi-coin me-1"></i>Coin Discount</span>
+                  <span>-${{ coinDiscountAmount.toFixed(2) }}</span>
                 </div>
                 <hr>
                 <div class="d-flex justify-content-between fw-bold">
@@ -185,15 +223,9 @@ import { mapGetters } from 'vuex'
 import axios from 'axios'
 import { loadStripe } from '@stripe/stripe-js'
 
-// Load publishable key from environment variable. Configure VUE_APP_STRIPE_PUBLISHABLE in your environment.
 const stripePublishableKey = process.env.VUE_APP_STRIPE_PUBLISHABLE || '';
 // If no publishable key is provided, keep stripePromise as null so callers can detect missing configuration.
 let stripePromise = null;
-if (stripePublishableKey) {
-  stripePromise = loadStripe(stripePublishableKey);
-} else {
-  stripePromise = null;
-}
 
 export default {
   name: 'Checkout',
@@ -214,6 +246,10 @@ export default {
       voucherApplied: false,
       voucherError: '',
       appliedVoucher: null,
+      // Coin discount
+      useCoins: false,
+      coinsToUse: 0,
+      availableCoins: 0,
     }
   },
   computed: {
@@ -239,7 +275,16 @@ export default {
       }
     },
     totalAmount() {
-      return this.subtotal + this.shippingCost - this.discountAmount
+      return Math.max(0, this.subtotal + this.shippingCost - this.discountAmount - this.coinDiscountAmount)
+    },
+    coinDiscountAmount() {
+      if (!this.useCoins || this.coinsToUse <= 0) return 0
+      return Math.min(this.coinsToUse / 1000, this.subtotal + this.shippingCost - this.discountAmount)
+    },
+    maxCoinsUsable() {
+      const maxByBalance = this.availableCoins
+      const maxByTotal = Math.ceil((this.subtotal + this.shippingCost - this.discountAmount) * 1000)
+      return Math.min(maxByBalance, maxByTotal)
     },
     userAddresses() {
       return this.currentUser?.addresses || []
@@ -298,14 +343,21 @@ export default {
     if (this.paymentMethod === 'stripe') {
       await this.setupStripe();
     }
+
+    // Load coin balance
+    await this.loadCoinBalance();
   },
   methods: {
     async setupStripe() {
       if (this.cardElement) return;
       // Ensure publishable key is configured
-      if (!stripePromise) {
+      if (!stripePublishableKey) {
         this.$toast.error('Stripe publishable key is not configured. Please set VUE_APP_STRIPE_PUBLISHABLE.', { position: 'top-right' });
         return;
+      }
+      
+      if (!stripePromise) {
+        stripePromise = loadStripe(stripePublishableKey);
       }
 
       // Await the loader promise and ensure it resolved to a Stripe instance
@@ -363,29 +415,29 @@ export default {
         await this.handleCashOnDelivery();
       }
     },
-    async createOrder(paymentIntentId = null) {
+    async createOrder(paymentIntentId = null, coinsAlreadyDeducted = false) {
        try {
         const orderData = {
           products: this.selectedItems.map(item => ({
             productId: item._id,
             productName: item.name,
             sellerId: item.sellerId,
-            sellerName: item.sellerName,
+            sellerName: item.sellerName || 'Unknown Shop',
             quantity: item.quantity,
-            price: item.price,
+            price: item.price || 0,
             image: item.image,
             selectedOptions: item.selectedOptions || {}
           })),
-          totalAmount: this.totalAmount,
+          totalAmount: this.totalAmount || 0,
           shippingAddress: this.shippingAddress,
           paymentMethod: this.paymentMethod,
           paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed',
           paymentIntentId: paymentIntentId,
-          voucher: this.voucherApplied ? {
+          coinsUsed: (this.useCoins ? this.coinsToUse : 0) || 0,
+          coinsAlreadyDeducted: coinsAlreadyDeducted || false,
+          voucher: this.appliedVoucher ? {
             code: this.appliedVoucher.code,
-            discountType: this.appliedVoucher.discountType,
-            discountValue: this.appliedVoucher.discountValue,
-            discountAmount: this.discountAmount
+            discountAmount: this.discountAmount || 0
           } : null
         }
 
@@ -448,13 +500,32 @@ export default {
         return;
       }
 
+      const token = localStorage.getItem('token');
+      let coinsDeducted = false;
+      const coinsToDeduct = this.useCoins ? this.coinsToUse : 0;
+
       try {
-        // 1. Create a PaymentIntent on your server
-  const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
+        // 1. Deduct coins BEFORE charging Stripe (so we can abort if coins fail)
+        if (coinsToDeduct > 0) {
+          try {
+            await axios.post('/api/coins/deduct', {
+              userId: this.currentUser._id || this.currentUser.id,
+              amount: coinsToDeduct,
+              description: 'Order discount'
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            coinsDeducted = true;
+          } catch (coinError) {
+            this.$toast.error(coinError.response?.data?.message || 'Failed to deduct coins. Please try again.', { position: 'top-right' });
+            return;
+          }
+        }
+
+        // 2. Create a PaymentIntent on your server
+        const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
           amount: this.totalAmount * 100 // Amount in cents
         });
 
-        // 2. Confirm the card payment
+        // 3. Confirm the card payment
         const { paymentIntent, error } = await this.stripe.confirmCardPayment(clientSecret, {
           payment_method: {
             card: this.cardElement,
@@ -465,14 +536,48 @@ export default {
         });
 
         if (error) {
+          // Stripe payment failed - refund coins if already deducted
+          if (coinsDeducted) {
+            try {
+              await axios.post('/api/coins/refund', {
+                userId: this.currentUser._id || this.currentUser.id,
+                amount: coinsToDeduct,
+                description: 'Stripe payment failed - coin refund'
+              }, { headers: { Authorization: `Bearer ${token}` } });
+            } catch (refundErr) {
+              console.error('Failed to refund coins after Stripe error:', refundErr);
+            }
+          }
           this.$toast.error(error.message, { position: 'top-right' });
         } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-          // 3. If payment is successful, create the order in your database
-          // use backend enum value 'completed' when saving order
-          await this.createOrder(paymentIntent.id);
+          // 4. If payment is successful, create the order (coins already deducted)
+          await this.createOrder(paymentIntent.id, coinsDeducted);
         }
       } catch (err) {
+        // Refund coins if already deducted and something unexpected failed
+        if (coinsDeducted) {
+          try {
+            await axios.post('/api/coins/refund', {
+              userId: this.currentUser._id || this.currentUser.id,
+              amount: coinsToDeduct,
+              description: 'Payment failed - coin refund'
+            }, { headers: { Authorization: `Bearer ${token}` } });
+          } catch (refundErr) {
+            console.error('Failed to refund coins after payment error:', refundErr);
+          }
+        }
         this.$toast.error(err.response?.data?.message || 'Payment failed. Please try again.', { position: 'top-right' });
+      }
+    },
+    async loadCoinBalance() {
+      try {
+        const response = await axios.get('/api/coins', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        })
+        this.availableCoins = response.data.coins || 0
+      } catch (error) {
+        console.error('Failed to load coin balance:', error)
+        this.availableCoins = 0
       }
     }
   }

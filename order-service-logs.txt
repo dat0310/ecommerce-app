@@ -1,5 +1,0 @@
-﻿
-> order-service@1.0.0 start
-> node server.js
-
-Order service running on port 3003

@@ -45,6 +45,27 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), orderController
 // Accept an order (seller only)
 router.patch('/:id/accept', authenticateToken, requireRole(['seller']), orderController.acceptOrder);
 
+// Buyer cancels own order (pending/confirmed/processing)
+router.patch('/:id/cancel', authenticateToken, orderController.cancelOrder);
+
+// Buyer requests refund (delivered only)
+router.patch('/:id/request-refund', authenticateToken, orderController.requestRefund);
+
+// Buyer confirms received (shipped → delivered)
+router.patch('/:id/confirm-received', authenticateToken, orderController.confirmReceived);
+
+// Seller approves refund
+router.patch('/:id/approve-refund', authenticateToken, requireRole(['seller']), orderController.approveRefund);
+
+// Seller rejects refund
+router.patch('/:id/reject-refund', authenticateToken, requireRole(['seller']), orderController.rejectRefund);
+
+// Buyer opens dispute (after seller rejects refund)
+router.patch('/:id/open-dispute', authenticateToken, orderController.openDispute);
+
+// Admin resolves dispute
+router.patch('/:id/resolve-dispute', authenticateToken, requireRole(['admin']), orderController.resolveDispute);
+
 // Update order status (seller or admin)
 router.patch('/:id/status', authenticateToken, requireRole(['admin', 'seller']), orderController.updateStatus);
 

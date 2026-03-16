@@ -103,16 +103,7 @@
                   </button>
                 </div>
                 <div class="position-absolute bottom-0 start-0 end-0 p-3">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge bg-primary">{{ product.category || 'Uncategorized' }}</span>
-                    <div class="text-warning">
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                      <i class="bi bi-star-fill"></i>
-                    </div>
-                  </div>
+                  <span class="badge bg-primary">{{ product.category || 'Uncategorized' }}</span>
                 </div>
               </div>
               
@@ -156,14 +147,6 @@
                         <small class="text-muted d-block">Free shipping</small>
                       </div>
                       <div class="d-flex align-items-center gap-3">
-                        <div class="text-warning">
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <small class="text-muted ms-1">(4.8)</small>
-                        </div>
                         <small class="text-muted">Stock: {{ product.stock || 0 }}</small>
                       </div>
                     </div>

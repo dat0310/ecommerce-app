@@ -1,7 +1,9 @@
 const orderRepository = require('../repositories/orderRepository');
 
 const axios = require('axios');
-const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://product-service:3001';
+const productServiceUrl = process.env.PRODUCT_SERVICE_URL || 'http://localhost:3001';
+const coinServiceUrl = process.env.COIN_SERVICE_URL || 'http://localhost:3008';
+const voucherServiceUrl = process.env.VOUCHER_SERVICE_URL || 'http://localhost:3007';
 
 class OrderService {
     generateOrderNumber() {
@@ -15,6 +17,7 @@ class OrderService {
         const processingOrders = await orderRepository.countDocuments({ status: 'processing' });
         const shippedOrders = await orderRepository.countDocuments({ status: 'shipped' });
         const deliveredOrders = await orderRepository.countDocuments({ status: 'delivered' });
+        const completedOrders = await orderRepository.countDocuments({ status: 'completed' });
         const cancelledOrders = await orderRepository.countDocuments({ status: 'cancelled' });
 
         const totalRevenue = await orderRepository.aggregate([
@@ -29,6 +32,7 @@ class OrderService {
             processingOrders,
             shippedOrders,
             deliveredOrders,
+            completedOrders,
             cancelledOrders,
             totalRevenue: totalRevenue[0]?.total || 0
         };
@@ -63,13 +67,55 @@ class OrderService {
         let paymentStatus = orderData.paymentStatus;
         if (paymentStatus === 'succeeded') paymentStatus = 'completed';
 
-        // 1. Reduce Stock for all products
+        const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
+
+        // 0. Deduct coins if used (skip if already deducted by frontend for Stripe flow)
+        let coinsUsed = parseInt(orderData.coinsUsed) || 0;
+        let coinDiscount = 0;
+        const coinsAlreadyDeducted = orderData.coinsAlreadyDeducted === true;
+        if (coinsUsed > 0) {
+            coinDiscount = coinsUsed / 1000; // 1000 coins = $1
+            if (!coinsAlreadyDeducted) {
+                try {
+                    await axios.post(`${coinServiceUrl}/deduct`, {
+                        userId: user.id,
+                        amount: coinsUsed,
+                        description: 'Order discount'
+                    }, { headers: { 'Authorization': token } });
+                } catch (coinError) {
+                    const errorDetail = coinError.response?.data?.message || coinError.response?.data?.error?.message || coinError.message;
+                    throw new Error(`Failed to deduct coins: ${errorDetail}`);
+                }
+            }
+        }
+
+        // 1. Redeem Voucher if present
+        let voucherRedeemed = false;
+        if (orderData.voucher && orderData.voucher.code) {
+            try {
+                await axios.post(`${voucherServiceUrl}/api/vouchers/redeem`, {
+                    code: orderData.voucher.code
+                }, { headers: { 'Authorization': token } });
+                voucherRedeemed = true;
+            } catch (voucherError) {
+                // Rollback coins if deducted
+                if (coinsUsed > 0) {
+                    try {
+                        await axios.post(`${coinServiceUrl}/refund`, {
+                            userId: user.id,
+                            amount: coinsUsed,
+                            description: 'Order failed - coin refund'
+                        }, { headers: { 'Authorization': token } });
+                    } catch (e) { console.error('CRITICAL: Failed to refund coins', e.message); }
+                }
+                throw new Error(voucherError.response?.data?.message || 'Failed to redeem voucher');
+            }
+        }
+
+        // 2. Reduce Stock for all products
         const reducedProducts = [];
         try {
             for (const item of orderData.products) {
-                // Ensure auth header is formatted correctly
-                const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
-
                 try {
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/reduce-stock`,
                         { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
@@ -86,7 +132,6 @@ class OrderService {
             console.log('Rolling back stock reduction...');
             for (const item of reducedProducts) {
                 try {
-                    const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
                         { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
                         { headers: { 'Authorization': token } }
@@ -95,15 +140,38 @@ class OrderService {
                     console.error(`CRITICAL: Failed to rollback stock for product ${item.productId}`, restoreError.message);
                 }
             }
-            throw error; // Re-throw to controller
+            // Rollback Voucher
+            if (voucherRedeemed) {
+                try {
+                    await axios.post(`${voucherServiceUrl}/api/vouchers/refund`, {
+                        code: orderData.voucher.code
+                    }, { headers: { 'Authorization': token } });
+                } catch (e) { console.error('CRITICAL: Failed to refund voucher', e.message); }
+            }
+            // Rollback coins if deducted
+            if (coinsUsed > 0) {
+                try {
+                    await axios.post(`${coinServiceUrl}/refund`, {
+                        userId: user.id,
+                        amount: coinsUsed,
+                        description: 'Order failed - coin refund'
+                    }, { headers: { 'Authorization': token } });
+                } catch (e) { console.error('CRITICAL: Failed to refund coins', e.message); }
+            }
+            throw error;
         }
 
+        // Remove transient flow-control flags before saving
+        const { coinsAlreadyDeducted: _discardFlag, ...cleanOrderData } = orderData;
+
         const newOrderData = {
-            ...orderData,
+            ...cleanOrderData,
             paymentStatus,
             userId: user.id,
             userEmail: user.email,
             orderNumber: this.generateOrderNumber(),
+            coinsUsed,
+            coinDiscount,
             updatedAt: Date.now()
         };
 
@@ -111,10 +179,9 @@ class OrderService {
             return await orderRepository.create(newOrderData);
         } catch (dbError) {
             // Rollback stock if DB creation fails
-            console.log('Order creation failed, rolling back stock...');
+            console.log('Order creation failed, rolling back...');
             for (const item of reducedProducts) {
                 try {
-                    const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
                     await axios.patch(`${productServiceUrl}/api/products/${item.productId}/restore-stock`,
                         { quantity: item.quantity, selectedOptions: item.selectedOptions || {} },
                         { headers: { 'Authorization': token } }
@@ -122,6 +189,24 @@ class OrderService {
                 } catch (restoreError) {
                     console.error(`CRITICAL: Failed to rollback stock for product ${item.productId}`, restoreError.message);
                 }
+            }
+            // Rollback Voucher
+            if (voucherRedeemed) {
+                try {
+                    await axios.post(`${voucherServiceUrl}/api/vouchers/refund`, {
+                        code: orderData.voucher.code
+                    }, { headers: { 'Authorization': token } });
+                } catch (e) { console.error('CRITICAL: Failed to refund voucher', e.message); }
+            }
+            // Rollback coins if deducted
+            if (coinsUsed > 0) {
+                try {
+                    await axios.post(`${coinServiceUrl}/refund`, {
+                        userId: user.id,
+                        amount: coinsUsed,
+                        description: 'Order failed - coin refund'
+                    }, { headers: { 'Authorization': token } });
+                } catch (e) { console.error('CRITICAL: Failed to refund coins', e.message); }
             }
             throw dbError;
         }
@@ -178,7 +263,7 @@ class OrderService {
         });
     }
 
-    async updateStatus(id, status, user) {
+    async updateStatus(id, status, user, authHeader) {
         const order = await orderRepository.findById(id);
         if (!order) throw new Error('Order not found');
 
@@ -186,6 +271,41 @@ class OrderService {
             const isSellerForOrder = order.products.some(product => product.sellerId === user.id);
             if (!isSellerForOrder) {
                 throw new Error('Access denied. You can only update status for orders containing your products.');
+            }
+            // Sellers cannot mark orders as "completed" — only buyers can confirm receipt
+            if (status === 'completed') {
+                throw new Error('Sellers cannot mark orders as completed. Only the buyer can confirm receipt.');
+            }
+        }
+
+        // Handle cancellations
+        if (status === 'cancelled' && order.status !== 'cancelled') {
+            const token = authHeader ? (authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`) : '';
+
+            // Refund Coins
+            if (order.coinsUsed > 0 && token) {
+                try {
+                    await axios.post(`${coinServiceUrl}/refund`, {
+                        userId: order.userId,
+                        amount: order.coinsUsed,
+                        description: `Refund for cancelled order ${order.orderNumber}`
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Refunded ${order.coinsUsed} coins for order ${order.orderNumber}`);
+                } catch (error) {
+                    console.error('CRITICAL: Failed to refund coins on cancellation', error.message);
+                }
+            }
+
+            // Refund Voucher
+            if (order.voucher && order.voucher.code && token) {
+                try {
+                    await axios.post(`${voucherServiceUrl}/api/vouchers/refund`, {
+                        code: order.voucher.code
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Refunded voucher ${order.voucher.code} for order ${order.orderNumber}`);
+                } catch (error) {
+                    console.error('CRITICAL: Failed to refund voucher on cancellation', error.message);
+                }
             }
         }
 
@@ -198,7 +318,7 @@ class OrderService {
     async checkPurchase(userId, productId, orderId) {
         const query = {
             userId,
-            status: 'delivered',
+            status: { $in: ['delivered', 'completed'] },
             'products.productId': productId
         };
         if (orderId) {

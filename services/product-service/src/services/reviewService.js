@@ -2,6 +2,7 @@ const reviewRepository = require('../repositories/reviewRepository');
 const axios = require('axios');
 
 const orderServiceUrl = process.env.ORDER_SERVICE_URL || 'http://order-service:3003';
+const coinServiceUrl = process.env.COIN_SERVICE_URL || 'http://shophubcoin-service:3008';
 
 class ReviewService {
     async getProductReviews(productId) {
@@ -22,8 +23,8 @@ class ReviewService {
         }
 
         // 2. Verify purchase with order-service (must be delivered)
+        const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
         try {
-            const token = authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`;
             const response = await axios.get(`${orderServiceUrl}/api/orders/check-purchase`, {
                 params: { userId, productId, orderId },
                 headers: { 'Authorization': token }
@@ -40,7 +41,7 @@ class ReviewService {
         }
 
         // 3. Create review
-        return await reviewRepository.create({
+        const review = await reviewRepository.create({
             productId,
             orderId,
             userId,
@@ -48,7 +49,19 @@ class ReviewService {
             rating,
             comment
         });
+
+        // 4. Award 500 coins for review (fire and forget)
+        try {
+            await axios.post(`${coinServiceUrl}/earn-review`, {
+                userId
+            }, { headers: { 'Authorization': token } });
+        } catch (coinError) {
+            console.error('Failed to award review coins:', coinError.message);
+        }
+
+        return review;
     }
+
 
     async deleteReview(productId, orderId, userId) {
         const review = await reviewRepository.deleteByOrderUserAndProduct(orderId, userId, productId);

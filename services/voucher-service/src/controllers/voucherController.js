@@ -13,19 +13,36 @@ class VoucherController {
     async getActiveVouchers(req, res) {
         try {
             const vouchers = await voucherService.getActiveVouchers();
-            // Manually hiding fields if service didn't (Service returned Mongoose docs, so we can convert to obj or select in repo).
-            // Start implementation hiding in Controller or Service. 
-            // Service calls repo.findAll which returns documents.
-            // We can map here.
             const safeVouchers = vouchers.map(v => {
                 const obj = v.toObject ? v.toObject() : v;
-                delete obj.usageCount;
-                delete obj.usageLimit;
                 return obj;
             });
             res.json(safeVouchers);
         } catch (error) {
             res.status(500).json({ message: error.message });
+        }
+    }
+
+    async getMyVouchers(req, res) {
+        try {
+            const userId = req.user.id;
+            const vouchers = await voucherService.getMyVouchers(userId);
+            res.json(vouchers);
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    }
+
+    async acquireVoucher(req, res) {
+        try {
+            const userId = req.user.id;
+            const voucherId = req.params.id;
+            const authHeader = req.headers.authorization;
+            const userVoucher = await voucherService.acquireVoucher(userId, voucherId, authHeader);
+            res.status(200).json({ message: 'Voucher acquired successfully', data: userVoucher });
+        } catch (error) {
+            console.error('Error acquiring voucher:', error);
+            res.status(400).json({ message: error.message });
         }
     }
 
@@ -61,8 +78,9 @@ class VoucherController {
 
     async applyVoucher(req, res) {
         try {
+            const userId = req.user.id;
             const { code, orderTotal } = req.body;
-            const voucher = await voucherService.applyVoucher(code, orderTotal);
+            const voucher = await voucherService.applyVoucher(userId, code, orderTotal);
             res.json({
                 message: 'Voucher applied successfully',
                 voucher: {
@@ -85,11 +103,23 @@ class VoucherController {
 
     async redeemVoucher(req, res) {
         try {
-            const voucher = await voucherService.redeemVoucher(req.body.code);
+            const userId = req.user.id;
+            const voucher = await voucherService.redeemVoucher(userId, req.body.code);
             res.json({ message: 'Voucher redeemed successfully', usageCount: voucher.usageCount });
         } catch (error) {
             if (error.message === 'Voucher not found') return res.status(404).json({ message: error.message });
             res.status(500).json({ message: error.message });
+        }
+    }
+
+    async refundVoucher(req, res) {
+        try {
+            const userId = req.user.id;
+            const result = await voucherService.refundVoucher(userId, req.body.code);
+            res.json(result);
+        } catch (error) {
+            console.error('Error refunding voucher:', error);
+            res.status(400).json({ message: error.message });
         }
     }
 

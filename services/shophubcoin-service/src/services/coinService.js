@@ -4,8 +4,6 @@ class CoinService {
     async getWallet(userId) {
         let wallet = await coinRepository.findByUserId(userId);
         if (!wallet) {
-            // Logic says if not found, create new.
-            // This implicitly means any authenticated user has a wallet.
             wallet = await coinRepository.create({ userId });
         }
         return wallet;
@@ -48,6 +46,43 @@ class CoinService {
             description: 'Daily Login Reward'
         });
 
+        return await coinRepository.save(wallet);
+    }
+
+    async deductCoins(userId, amount, description) {
+        const wallet = await this.getWallet(userId);
+        if (wallet.balance < amount) {
+            throw new Error('Insufficient coins');
+        }
+        wallet.balance -= amount;
+        wallet.transactions.push({
+            type: 'SPEND',
+            amount,
+            description: description || 'Coin Deduction'
+        });
+        return await coinRepository.save(wallet);
+    }
+
+    async refundCoins(userId, amount, description) {
+        const wallet = await this.getWallet(userId);
+        wallet.balance += amount;
+        wallet.transactions.push({
+            type: 'EARN',
+            amount,
+            description: description || 'Coin Refund'
+        });
+        return await coinRepository.save(wallet);
+    }
+
+    async earnReviewReward(userId) {
+        const REVIEW_REWARD = 500;
+        const wallet = await this.getWallet(userId);
+        wallet.balance += REVIEW_REWARD;
+        wallet.transactions.push({
+            type: 'EARN',
+            amount: REVIEW_REWARD,
+            description: 'Product Review Reward'
+        });
         return await coinRepository.save(wallet);
     }
 }

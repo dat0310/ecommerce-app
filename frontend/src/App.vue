@@ -216,8 +216,8 @@ export default {
     ...mapActions(['logoutUser', 'fetchUserProfile', 'updateSearchQuery']),
     executeSearch() {
       this.updateSearchQuery(this.searchQueryModel);
-      if (this.$route.name !== 'Products' || this.$route.query.q !== this.searchQueryModel) {
-        this.$router.push({ name: 'Products', query: { q: this.searchQueryModel } }).catch(err => {
+      if (this.$route.name !== 'Home' || this.$route.query.q !== this.searchQueryModel) {
+        this.$router.push({ name: 'Home', query: { q: this.searchQueryModel } }).catch(err => {
           if (err.name !== 'NavigationDuplicated') {
             throw err;
           }

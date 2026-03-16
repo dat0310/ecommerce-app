@@ -21,7 +21,7 @@
             </router-link>
           </li>
           <li class="breadcrumb-item">
-            <router-link to="/products" class="text-decoration-none">Products</router-link>
+            <router-link to="/" class="text-decoration-none">Products</router-link>
           </li>
           <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
         </ol>
@@ -123,7 +123,7 @@
             </div>
 
             <!-- Quantity and Add to Cart -->
-            <div v-if="product.stock > 0 && (!hasVariants || allOptionsSelected)" class="add-to-cart-section mb-4">
+            <div v-if="availableStock > 0 && (!hasVariants || allOptionsSelected) && !isOwnProduct" class="add-to-cart-section mb-4">
               <div class="row g-3 align-items-center">
                 <div class="col-auto">
                   <label for="quantity" class="form-label fw-semibold">Quantity:</label>
@@ -142,40 +142,45 @@
                       id="quantity" 
                       v-model.number="quantity" 
                       min="1" 
-                      :max="product.stock" 
+                      :max="availableStock" 
                       class="form-control text-center mx-2" 
                       style="width: 80px;"
                     >
                     <button 
-                      @click="quantity < product.stock ? quantity++ : null"
+                      @click="quantity < availableStock ? quantity++ : null"
                       class="btn btn-outline-secondary"
-                      :disabled="quantity >= product.stock"
+                      :disabled="quantity >= availableStock"
                     >
                       <i class="bi bi-plus"></i>
                     </button>
                   </div>
                 </div>
                 <div class="col-auto">
-                  <small class="text-muted">Max: {{ product.stock }}</small>
+                  <small class="text-muted">Max: {{ availableStock }}</small>
                 </div>
               </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="action-buttons mb-4">
-              <div class="d-grid gap-2 d-md-flex">
+              <!-- Seller Warning -->
+              <div v-if="isOwnProduct" class="alert alert-info d-flex align-items-center" role="alert">
+                <i class="bi bi-info-circle me-2"></i>
+                This is your own product. You cannot purchase it.
+              </div>
+              <div v-else class="d-grid gap-2 d-md-flex">
                 <button
                   @click="handleAddToCart"
                   class="btn btn-primary btn-lg flex-md-fill hover-lift"
-                  :disabled="product.stock === 0"
+                  :disabled="availableStock === 0"
                 >
                   <i class="bi bi-cart-plus me-2"></i>
-                  {{ product.stock > 0 ? 'Add to Cart' : 'Out of Stock' }}
+                  {{ availableStock > 0 ? 'Add to Cart' : 'Out of Stock' }}
                 </button>
                 <button
                   @click="handleBuyNow"
                   class="btn btn-success btn-lg flex-md-fill hover-lift"
-                  :disabled="product.stock === 0"
+                  :disabled="availableStock === 0"
                 >
                   Buy
                 </button>
@@ -264,38 +269,32 @@
               </div>
             </div>
             <div class="card-body">
-              <!-- User's Reviews Section -->
-              <div v-if="isAuthenticated" class="mb-4 p-3 bg-light rounded">
-                <div v-if="myExistingReviews.length > 0">
-                  <h6 class="fw-bold mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>Your Reviews ({{ myExistingReviews.length }})</h6>
-                  <div v-for="myReview in myExistingReviews" :key="myReview._id" class="border-bottom pb-2 mb-2">
-                    <div class="d-flex align-items-center mb-1">
-                      <div class="text-warning me-2">
-                        <i v-for="n in 5" :key="'my-'+myReview._id+'-'+n" :class="n <= myReview.rating ? 'bi bi-star-fill' : 'bi bi-star'" class="me-1"></i>
-                      </div>
-                      <small class="text-muted">{{ formatDate(myReview.createdAt) }}</small>
-                    </div>
-                    <p class="text-muted mb-0 small">{{ myReview.comment || 'No comment provided.' }}</p>
-                  </div>
-                  <p class="text-muted small mb-0 mt-2"><i class="bi bi-info-circle me-1"></i>You can review each delivered order from your <router-link to="/profile">Profile → My Purchase</router-link> page.</p>
-                </div>
-                <div v-else class="text-center">
-                  <p class="text-muted mb-2">Purchased this product? Leave a review from your orders!</p>
-                  <router-link to="/profile" class="btn btn-outline-primary btn-sm"><i class="bi bi-bag-check me-1"></i>Go to My Purchase</router-link>
+              <!-- Review Coin Reward Banner -->
+              <div v-if="isAuthenticated && !isOwnProduct" class="mb-4 p-3 bg-warning bg-opacity-10 border border-warning rounded d-flex align-items-center">
+                <i class="bi bi-coin text-warning fs-3 me-3"></i>
+                <div>
+                  <h6 class="mb-0 text-warning fw-bold"><i class="bi bi-gift me-1"></i>Earn 500 ShopHub Coins!</h6>
+                  <small class="text-muted">Submit a review for this product and get rewarded with 500 coins.</small>
                 </div>
               </div>
-              <div v-else class="mb-4 p-3 bg-light rounded text-center">
+
+              <!-- Login prompt -->
+              <div v-if="!isAuthenticated" class="mb-4 p-3 bg-light rounded text-center">
                 <p class="text-muted mb-2">Please log in to write a review.</p>
                 <router-link to="/login" class="btn btn-outline-primary btn-sm">Log In</router-link>
               </div>
+              <div v-else-if="!isOwnProduct" class="mb-4 p-3 bg-light rounded text-center">
+                <p class="text-muted mb-2">Purchased this product? Leave a review from your orders!</p>
+                <router-link to="/profile" class="btn btn-outline-primary btn-sm"><i class="bi bi-bag-check me-1"></i>Go to My Purchase</router-link>
+              </div>
 
-              <!-- Reviews List -->
-              <div v-if="reviews.length === 0" class="text-center py-4">
+              <!-- Reviews List (filtered: exclude current user's reviews) -->
+              <div v-if="filteredReviews.length === 0" class="text-center py-4">
                 <i class="bi bi-chat-left-text fs-1 text-muted"></i>
                 <p class="text-muted mt-2">No reviews yet. Be the first to review this product!</p>
               </div>
               <div v-else>
-                <div v-for="review in reviews" :key="review._id" class="review-item border-bottom py-3">
+                <div v-for="review in filteredReviews" :key="review._id" class="review-item border-bottom py-3">
                   <div class="d-flex justify-content-between align-items-start mb-2">
                     <div>
                       <div class="text-warning mb-1">
@@ -322,7 +321,7 @@
         </div>
         <h2 class="fw-bold mb-3">Product not found</h2>
         <p class="text-muted mb-4">The product you're looking for doesn't exist or has been removed.</p>
-        <router-link to="/products" class="btn btn-primary btn-lg hover-lift">
+        <router-link to="/" class="btn btn-primary btn-lg hover-lift">
           <i class="bi bi-grid me-2"></i>
           Browse Products
         </router-link>
@@ -421,6 +420,11 @@ export default {
       if (!this.currentUser || !this.reviews.length) return []
       const userId = this.currentUser._id || this.currentUser.id
       return this.reviews.filter(r => r.userId === userId)
+    },
+    filteredReviews() {
+      if (!this.currentUser || !this.reviews.length) return this.reviews
+      const userId = this.currentUser._id || this.currentUser.id
+      return this.reviews.filter(r => r.userId !== userId)
     },
     isOwnProduct() {
       if (!this.currentUser || !this.product.sellerId) return false

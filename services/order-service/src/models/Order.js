@@ -51,8 +51,16 @@ const orderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'],
+        enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'refund_requested', 'refund_approved', 'refund_rejected', 'dispute_open', 'dispute_resolved'],
         default: 'pending'
+    },
+    coinsUsed: {
+        type: Number,
+        default: 0
+    },
+    coinDiscount: {
+        type: Number,
+        default: 0
     },
     shippingAddress: {
         fullName: String,
@@ -75,9 +83,34 @@ const orderSchema = new mongoose.Schema({
         type: String,
         unique: true
     },
+    voucher: {
+        code: { type: String },
+        discountType: { type: String, enum: ['percentage', 'fixed'] },
+        discountValue: { type: Number },
+        discountAmount: { type: Number }
+    },
     notes: {
         type: String,
         default: ''
+    },
+    refundInfo: {
+        reason: { type: String, default: '' },
+        description: { type: String, default: '' },
+        requestedAt: { type: Date },
+        sellerResponse: {
+            type: String,
+            enum: ['pending', 'approved', 'rejected', null],
+            default: null
+        },
+        sellerNote: { type: String, default: '' },
+        sellerRespondedAt: { type: Date },
+        adminResolution: {
+            type: String,
+            enum: ['refund', 'reject', null],
+            default: null
+        },
+        adminNote: { type: String, default: '' },
+        adminResolvedAt: { type: Date }
     },
     createdAt: {
         type: Date,

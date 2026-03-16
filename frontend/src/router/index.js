@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
-import Products from '../views/Products.vue'
 import ProductDetail from '../views/ProductDetail.vue'
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
@@ -21,7 +20,7 @@ const routes = [
   {
     path: '/products',
     name: 'Products',
-    component: Products
+    redirect: to => ({ path: '/', query: to.query })
   },
   {
     path: '/products/:id',

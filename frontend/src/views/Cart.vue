@@ -37,7 +37,7 @@
             </div>
             <h2 class="fw-bold mb-3">Your cart is empty</h2>
             <p class="text-muted mb-4">Looks like you haven't added any items to your cart yet.</p>
-            <router-link to="/products" class="btn btn-primary btn-lg hover-lift">
+            <router-link to="/" class="btn btn-primary btn-lg hover-lift">
               <i class="bi bi-bag me-2"></i>
               Start Shopping
             </router-link>
@@ -193,7 +193,7 @@
                     Proceed to Checkout
                   </button>
                   
-                  <router-link to="/products" class="btn btn-outline-primary hover-lift">
+                  <router-link to="/" class="btn btn-outline-primary hover-lift">
                     <i class="bi bi-arrow-left me-2"></i>
                     Continue Shopping
                   </router-link>

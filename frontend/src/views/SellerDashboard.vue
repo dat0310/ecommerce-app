@@ -50,15 +50,6 @@
                   <i class="bi bi-bag me-3"></i>
                   <span>Orders</span>
                 </a>
-                <a 
-                  class="nav-link seller-nav-link"
-                  :class="{ active: activeTab === 'chat' }"
-                  @click="activeTab = 'chat'"
-                  href="#"
-                >
-                  <i class="bi bi-chat-dots me-3"></i>
-                  <span>Chat</span>
-                </a>
               </nav>
             </div>
           </div>
@@ -570,18 +561,30 @@
                              Date: {{ formatDate(order.createdAt) }}
                            </div>
                            <div class="d-flex gap-2">
-                              <select 
+                            <!-- Grey disabled button for all Refund statuses -->
+                            <button 
+                              v-if="['refund_requested', 'refund_approved', 'refund_rejected'].includes(order.status)" 
+                              class="btn btn-secondary px-4 rounded-1" 
+                              disabled
+                            >
+                              Refund
+                            </button>
+
+                            <!-- Normal status dropdown for other statuses -->
+                            <select 
+                                v-else
                                 class="form-select form-select-sm" 
                                 style="width: auto;"
                                 :value="order.status"
                                 @change="updateOrderStatus(order._id, $event.target.value)"
-                                :disabled="order.status === 'delivered' || order.status === 'cancelled'"
+                                 :disabled="['delivered', 'completed', 'cancelled', 'dispute_open', 'dispute_resolved'].includes(order.status)"
                               >
                                 <option value="pending">Pending</option>
                                 <option value="confirmed">Confirmed</option>
                                 <option value="processing">Processing</option>
-                                <option value="shipped">Shipped</option>
+                                <option value="shipped">Shipping</option>
                                 <option value="delivered">Delivered</option>
+                                <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
                               </select>
 
@@ -592,28 +595,116 @@
                               >
                                 Accept Order
                               </button>
-                              <button class="btn btn-outline-secondary px-4" @click="activeTab = 'chat'">
+                              <button class="btn btn-outline-secondary px-4" @click="contactBuyer(order)">
                                 <i class="bi bi-chat-dots me-1"></i>Contact Buyer
                               </button>
+
+                              <!-- Refund Actions (Only show for refund_requested so seller can still approve/reject) -->
+                              <template v-if="order.status === 'refund_requested'">
+                                <button class="btn btn-success text-white px-3" @click="openRefundResponseModal(order, 'approve')">
+                                  <i class="bi bi-check-circle me-1"></i>Approve Refund
+                                </button>
+                                <button class="btn btn-danger text-white px-3" @click="openRefundResponseModal(order, 'reject')">
+                                  <i class="bi bi-x-circle me-1"></i>Reject Refund
+                                </button>
+                              </template>
                            </div>
                         </div>
                       </div>
+
+                      <!-- Refund Info Banner for refund_requested orders -->
+                      <div v-if="order.status === 'refund_requested' && order.refundInfo" class="card-footer bg-warning bg-opacity-10 border-top">
+                        <div class="d-flex align-items-start gap-2">
+                          <i class="bi bi-exclamation-triangle-fill text-warning fs-5 mt-1"></i>
+                          <div>
+                            <strong class="text-warning">Refund Requested by Buyer</strong>
+                            <p class="mb-1 mt-1 small"><strong>Reason:</strong> {{ order.refundInfo.reason || 'Not specified' }}</p>
+                            <p class="mb-0 small text-muted" v-if="order.refundInfo.description">{{ order.refundInfo.description }}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Refund Approved -->
+                      <div v-if="order.status === 'refund_approved'" class="card-footer bg-success bg-opacity-10 border-top">
+                        <div class="d-flex align-items-center gap-2">
+                          <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                          <span class="text-success fw-bold">Refund Approved</span>
+                        </div>
+                      </div>
+
+                      <!-- Refund Rejected -->
+                      <div v-if="order.status === 'refund_rejected'" class="card-footer bg-danger bg-opacity-10 border-top">
+                        <div class="d-flex align-items-center gap-2">
+                          <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+                          <span class="text-danger fw-bold">Refund Rejected</span>
+                          <span class="text-muted small ms-2">Buyer may escalate to admin</span>
+                        </div>
+                      </div>
+
+                      <!-- Dispute Open -->
+                      <div v-if="order.status === 'dispute_open'" class="card-footer bg-info bg-opacity-10 border-top">
+                        <div class="d-flex align-items-center gap-2">
+                          <i class="bi bi-shield-exclamation text-info fs-5"></i>
+                          <span class="text-info fw-bold">Dispute Open - Admin is reviewing</span>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Chat -->
-            <div v-if="activeTab === 'chat'" class="chat-management">
-              <h2 class="mb-4"><i class="bi bi-chat-dots me-2"></i>Customer Messages</h2>
-              <div class="card">
-                <div class="card-body p-0" style="height: 600px;">
-                  <ChatWidget ref="sellerChat" :embedded="true" />
-                </div>
-              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Refund Response Modal -->
+    <div v-if="showRefundResponseModal" class="modal-overlay-seller" @click.self="closeRefundResponseModal">
+      <div class="modal-content-seller" style="max-width: 500px;">
+        <div class="modal-header-seller">
+          <h5 class="mb-0">
+            <i :class="refundResponseAction === 'approve' ? 'bi bi-check-circle text-success' : 'bi bi-x-circle text-danger'" class="me-2"></i>
+            {{ refundResponseAction === 'approve' ? 'Approve Refund' : 'Reject Refund' }}
+          </h5>
+          <button class="btn-close" @click="closeRefundResponseModal"></button>
+        </div>
+        <div class="modal-body-seller">
+          <!-- Order Info -->
+          <div v-if="refundResponseOrder" class="mb-3 p-3 bg-light rounded">
+            <div class="small text-muted">Order: {{ refundResponseOrder.orderNumber }}</div>
+            <div class="small" v-if="refundResponseOrder.refundInfo">
+              <strong>Buyer's Reason:</strong> {{ refundResponseOrder.refundInfo.reason || 'Not specified' }}
+            </div>
+            <div class="small text-muted" v-if="refundResponseOrder.refundInfo && refundResponseOrder.refundInfo.description">
+              {{ refundResponseOrder.refundInfo.description }}
             </div>
           </div>
+
+          <div v-if="refundResponseAction === 'approve'" class="alert alert-success py-2 mb-3">
+            <i class="bi bi-info-circle me-1"></i>You are about to approve this refund request. The buyer will receive a refund.
+          </div>
+          <div v-else class="alert alert-warning py-2 mb-3">
+            <i class="bi bi-info-circle me-1"></i>You are about to reject this refund. The buyer can escalate to admin for dispute resolution.
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold">Note (Optional)</label>
+            <textarea v-model="refundResponseNote" class="form-control" rows="3" placeholder="Add a note explaining your decision..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer-seller">
+          <button class="btn btn-outline-secondary" @click="closeRefundResponseModal">Cancel</button>
+          <button 
+            class="btn" 
+            :class="refundResponseAction === 'approve' ? 'btn-success' : 'btn-danger'"
+            @click="submitRefundResponse"
+            :disabled="refundResponseSubmitting"
+          >
+            <span v-if="refundResponseSubmitting"><i class="bi bi-hourglass-split me-1"></i>Processing...</span>
+            <span v-else>{{ refundResponseAction === 'approve' ? 'Confirm Approve' : 'Confirm Reject' }}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -622,11 +713,10 @@
 
 <script>
 import axios from 'axios'
-import ChatWidget from '@/components/ChatWidget.vue'
 
 export default {
   name: 'SellerDashboard',
-  components: { ChatWidget },
+
   data() {
     return {
       activeTab: 'dashboard',
@@ -647,7 +737,13 @@ export default {
         stock: '',
         description: '',
         category: ''
-      }
+      },
+      // Refund Response Modal
+      showRefundResponseModal: false,
+      refundResponseOrder: null,
+      refundResponseAction: '', // 'approve' or 'reject'
+      refundResponseNote: '',
+      refundResponseSubmitting: false
     }
   },
   computed: {
@@ -984,13 +1080,18 @@ export default {
       }
     },
     async updateOrderStatus(orderId, status) {
+      // Sellers cannot mark orders as completed
+      if (status === 'completed') {
+        this.$toast.error('Sellers cannot mark orders as completed. Only the buyer can confirm receipt.')
+        return
+      }
       try {
         await axios.patch(`/api/orders/${orderId}/status`, { status })
         await this.loadMyOrders()
         this.$toast.success('Order status updated successfully')
       } catch (error) {
         console.error('Error updating order status:', error)
-        this.$toast.error('Failed to update order status')
+        this.$toast.error(error.response?.data?.message || 'Failed to update order status')
       }
     },
     async acceptOrder(orderId) {
@@ -1003,6 +1104,28 @@ export default {
         this.$toast.error('Failed to accept order')
       }
     },
+    contactBuyer(order) {
+      const buyerId = order.userId
+      const buyerName = (order.shippingAddress && order.shippingAddress.fullName) || order.userEmail || 'Buyer'
+      if (!buyerId) {
+        this.$toast.error('Buyer info not available.')
+        return
+      }
+      const firstProduct = order.products && order.products[0]
+      const productContext = firstProduct ? {
+        productId: firstProduct.productId,
+        name: firstProduct.productName || firstProduct.name || 'Product',
+        image: firstProduct.image || '',
+        price: firstProduct.price
+      } : null
+      window.dispatchEvent(new CustomEvent('open-seller-chat', {
+        detail: {
+          sellerId: buyerId,
+          sellerName: buyerName,
+          productContext
+        }
+      }))
+    },
     getStatusBadgeClass(status) {
       const classes = {
         pending: 'bg-warning',
@@ -1012,6 +1135,7 @@ export default {
         processing: 'bg-primary',
         shipped: 'bg-secondary',
         delivered: 'bg-success',
+        completed: 'bg-success',
         cancelled: 'bg-danger'
       }
       return classes[status] || 'bg-secondary'
@@ -1020,7 +1144,18 @@ export default {
       const statusText = {
         pending: 'Pending Approval',
         approved: 'Approved',
-        rejected: 'Rejected'
+        rejected: 'Rejected',
+        confirmed: 'Confirmed',
+        processing: 'Processing',
+        shipped: 'Shipping',
+        delivered: 'Delivered',
+        completed: 'Completed',
+        cancelled: 'Cancelled',
+        refund_requested: 'Refund',
+        refund_approved: 'Refund Approved',
+        refund_rejected: 'Refund Rejected',
+        dispute_open: 'Dispute - Under Review',
+        dispute_resolved: 'Dispute Resolved'
       }
       return statusText[status] || status
     },
@@ -1054,6 +1189,43 @@ export default {
         description: details,
         duration: 6000
       })
+    },
+    // Refund Response Modal
+    openRefundResponseModal(order, action) {
+      this.refundResponseOrder = order;
+      this.refundResponseAction = action;
+      this.refundResponseNote = '';
+      this.showRefundResponseModal = true;
+    },
+    closeRefundResponseModal() {
+      this.showRefundResponseModal = false;
+      this.refundResponseOrder = null;
+      this.refundResponseAction = '';
+      this.refundResponseNote = '';
+    },
+    async submitRefundResponse() {
+      const order = this.refundResponseOrder;
+      if (!order) return;
+      this.refundResponseSubmitting = true;
+      try {
+        const endpoint = this.refundResponseAction === 'approve' 
+          ? `/api/orders/${order._id}/approve-refund`
+          : `/api/orders/${order._id}/reject-refund`;
+        
+        await axios.patch(endpoint, { note: this.refundResponseNote });
+        await this.loadMyOrders();
+        
+        const msg = this.refundResponseAction === 'approve' 
+          ? 'Refund approved successfully' 
+          : 'Refund rejected. Buyer may escalate to admin.';
+        this.$toast.success(msg);
+        this.closeRefundResponseModal();
+      } catch (error) {
+        console.error('Error responding to refund:', error);
+        this.$toast.error(error.response?.data?.message || 'Failed to process refund response');
+      } finally {
+        this.refundResponseSubmitting = false;
+      }
     }
   }
 }
@@ -1258,5 +1430,62 @@ export default {
 
 .variant-table .form-control-sm {
   font-size: 0.8125rem;
+}
+
+/* Refund Response Modal */
+.modal-overlay-seller {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  backdrop-filter: blur(4px);
+}
+
+.modal-content-seller {
+  background: #fff;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header-seller {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.modal-body-seller {
+  padding: 1.5rem;
+}
+
+.modal-footer-seller {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e9ecef;
 }
 </style>

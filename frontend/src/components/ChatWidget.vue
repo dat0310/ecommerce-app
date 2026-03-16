@@ -68,7 +68,7 @@
       <!-- Product Context Card (pinned, outside scroll) -->
       <div v-if="showProductCard && currentProductContext && activeConversation" class="product-context-card">
         <div class="product-ctx-header">
-          <span>Bạn đang trao đổi với Người bán về sản phẩm này</span>
+          <span>You are communicating about this product.</span>
           <button class="btn-close-ctx" @click="showProductCard = false"><i class="bi bi-x"></i></button>
         </div>
         <div class="product-ctx-body">
@@ -88,33 +88,47 @@
         <div
           v-for="msg in messages"
           :key="msg._id"
-          class="message-bubble"
+          class="message-wrapper"
           :class="{ 'sent': msg.sender === currentUserId, 'received': msg.sender !== currentUserId }"
         >
-          <!-- Attachments -->
-          <div v-if="msg.attachments && msg.attachments.length > 0" class="message-attachments">
-            <div v-for="(att, i) in msg.attachments" :key="i" class="attachment-item">
-              <img
-                v-if="isImage(att.mimeType)"
-                :src="getAttachmentUrl(att.url)"
-                :alt="att.originalName"
-                class="attachment-image"
-                @click="openImagePreview(getAttachmentUrl(att.url))"
-              >
-              <a
-                v-else
-                :href="getAttachmentUrl(att.url)"
-                target="_blank"
-                class="attachment-file"
-              >
-                <i class="bi bi-file-earmark me-1"></i>
-                {{ att.originalName }}
-                <small class="text-muted ms-1">({{ formatFileSize(att.size) }})</small>
-              </a>
+          <!-- Inline Product Context Card (inside message) -->
+          <div v-if="msg.productContext && msg.productContext.productId" class="msg-product-card" @click="goToProduct(msg.productContext.productId)">
+            <img :src="msg.productContext.image" :alt="msg.productContext.name" class="msg-product-img" @error="$event.target.src = 'https://via.placeholder.com/60'">
+            <div class="msg-product-info">
+              <span class="msg-product-name">{{ msg.productContext.name }}</span>
+              <span class="msg-product-price">${{ msg.productContext.price }}</span>
             </div>
+            <i class="bi bi-chevron-right msg-product-arrow"></i>
           </div>
-          <p v-if="msg.text" class="message-text mb-0">{{ msg.text }}</p>
-          <small class="message-time">{{ formatTime(msg.createdAt) }}</small>
+          <div class="message-bubble"
+            :class="{ 'sent': msg.sender === currentUserId, 'received': msg.sender !== currentUserId }"
+            v-if="msg.text || (msg.attachments && msg.attachments.length > 0)"
+          >
+            <!-- Attachments -->
+            <div v-if="msg.attachments && msg.attachments.length > 0" class="message-attachments">
+              <div v-for="(att, i) in msg.attachments" :key="i" class="attachment-item">
+                <img
+                  v-if="isImage(att.mimeType)"
+                  :src="getAttachmentUrl(att.url)"
+                  :alt="att.originalName"
+                  class="attachment-image"
+                  @click="openImagePreview(getAttachmentUrl(att.url))"
+                >
+                <a
+                  v-else
+                  :href="getAttachmentUrl(att.url)"
+                  target="_blank"
+                  class="attachment-file"
+                >
+                  <i class="bi bi-file-earmark me-1"></i>
+                  {{ att.originalName }}
+                  <small class="text-muted ms-1">({{ formatFileSize(att.size) }})</small>
+                </a>
+              </div>
+            </div>
+            <p v-if="msg.text" class="message-text mb-0">{{ msg.text }}</p>
+            <small class="message-time">{{ formatTime(msg.createdAt) }}</small>
+          </div>
         </div>
       </div>
 
@@ -389,12 +403,22 @@ export default {
         ? (attachments.some(a => a.mimeType?.startsWith('image/')) ? 'image' : 'file')
         : 'text'
 
-      this.socket.emit('sendMessage', {
+      const payload = {
         conversationId: this.activeConversation._id,
         text: this.newMessage.trim(),
         messageType,
         attachments
-      })
+      }
+
+      // Attach product context to this message if one is active
+      if (this.currentProductContext) {
+        payload.productContext = { ...this.currentProductContext }
+        // Clear product context after attaching to the first sent message
+        this.currentProductContext = null
+        this.showProductCard = false
+      }
+
+      this.socket.emit('sendMessage', payload)
 
       this.newMessage = ''
       this.selectedFiles = []
@@ -505,6 +529,12 @@ export default {
       if (bytes < 1024) return bytes + 'B'
       if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB'
       return (bytes / 1048576).toFixed(1) + 'MB'
+    },
+
+    goToProduct(productId) {
+      if (productId) {
+        window.open(`/products/${productId}`, '_blank')
+      }
     }
   }
 }
@@ -668,8 +698,86 @@ export default {
   gap: 8px;
 }
 
-.message-bubble {
+.message-wrapper {
   max-width: 80%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.message-wrapper.sent {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.message-wrapper.received {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+/* Inline Product Card in Message */
+.msg-product-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e8e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  max-width: 280px;
+}
+
+.msg-product-card:hover {
+  background: #f5f6ff;
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+}
+
+.msg-product-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.msg-product-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msg-product-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.msg-product-price {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.msg-product-arrow {
+  color: #999;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.message-bubble {
+  max-width: 100%;
   padding: 10px 14px;
   border-radius: 16px;
   position: relative;
@@ -677,14 +785,12 @@ export default {
 }
 
 .message-bubble.sent {
-  align-self: flex-end;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border-bottom-right-radius: 4px;
 }
 
 .message-bubble.received {
-  align-self: flex-start;
   background: white;
   color: #1a1a2e;
   border-bottom-left-radius: 4px;
@@ -905,6 +1011,7 @@ export default {
   color: #1a1a2e;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.3;
