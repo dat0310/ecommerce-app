@@ -19,6 +19,18 @@ class PaymentService {
 
         return { clientSecret: paymentIntent.client_secret };
     }
+
+    async refund(paymentIntentId) {
+        if (!paymentIntentId) {
+            throw new Error('Payment Intent ID is required for refund');
+        }
+
+        const refund = await stripe.refunds.create({
+            payment_intent: paymentIntentId,
+        });
+
+        return refund;
+    }
 }
 
 module.exports = new PaymentService();

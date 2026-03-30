@@ -79,6 +79,9 @@ const orderSchema = new mongoose.Schema({
         enum: ['pending', 'completed', 'failed', 'refunded'],
         default: 'pending'
     },
+    paymentIntentId: {
+        type: String
+    },
     orderNumber: {
         type: String,
         unique: true

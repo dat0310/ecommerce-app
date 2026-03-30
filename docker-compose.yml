@@ -55,6 +55,7 @@ services:
       - PRODUCT_SERVICE_URL=http://product-service:3001
       - COIN_SERVICE_URL=http://shophubcoin-service:3008
       - VOUCHER_SERVICE_URL=http://voucher-service:3007
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
     depends_on:
       - mongo
     networks:

@@ -170,6 +170,7 @@ class OrderService {
             userId: user.id,
             userEmail: user.email,
             orderNumber: this.generateOrderNumber(),
+            paymentIntentId: cleanOrderData.paymentIntentId,
             coinsUsed,
             coinDiscount,
             updatedAt: Date.now()
@@ -281,6 +282,37 @@ class OrderService {
         // Handle cancellations
         if (status === 'cancelled' && order.status !== 'cancelled') {
             const token = authHeader ? (authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`) : '';
+            const paymentServiceUrl = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3005';
+
+            // Restore Stock for all cancelled products
+            if (order.products && order.products.length > 0) {
+                for (const product of order.products) {
+                    try {
+                        await axios.patch(`${productServiceUrl}/api/products/${product.productId}/restore-stock`, {
+                            quantity: product.quantity,
+                            selectedOptions: product.selectedOptions || {}
+                        }, { headers: { 'Authorization': token } });
+                        console.log(`Restored ${product.quantity} stock for product ${product.productId} on cancellation`);
+                    } catch (error) {
+                        console.error(`CRITICAL: Failed to restore stock for product ${product.productId} on cancellation:`, error.message);
+                    }
+                }
+            }
+
+            // Refund Stripe payment
+            if (order.paymentMethod === 'stripe' && order.paymentIntentId) {
+                try {
+                    console.log(`Triggering automatic Stripe refund for cancelled order ${order.orderNumber}, PI: ${order.paymentIntentId}`);
+                    await axios.post(`${paymentServiceUrl}/api/payments/refund`, {
+                        paymentIntentId: order.paymentIntentId
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Stripe refund successful for cancelled order ${order.orderNumber}`);
+                    await orderRepository.updateById(id, { paymentStatus: 'refunded' });
+                } catch (error) {
+                    const errorDetail = error.response?.data?.error?.message || error.message;
+                    console.error(`CRITICAL: Failed to refund Stripe payment on cancellation for order ${order.orderNumber}:`, errorDetail);
+                }
+            }
 
             // Refund Coins
             if (order.coinsUsed > 0 && token) {
@@ -305,6 +337,68 @@ class OrderService {
                     console.log(`Refunded voucher ${order.voucher.code} for order ${order.orderNumber}`);
                 } catch (error) {
                     console.error('CRITICAL: Failed to refund voucher on cancellation', error.message);
+                }
+            }
+        }
+
+        // Handle refund approved (Automatic Stripe + Coins + Voucher Refund)
+        if (status === 'refund_approved' && order.status !== 'refund_approved') {
+            const token = authHeader ? (authHeader.startsWith('Bearer ') ? authHeader : `Bearer ${authHeader}`) : '';
+            const paymentServiceUrl = process.env.PAYMENT_SERVICE_URL || 'http://localhost:3005';
+
+            // Restore Stock for all refunded products
+            if (order.products && order.products.length > 0) {
+                for (const product of order.products) {
+                    try {
+                        await axios.patch(`${productServiceUrl}/api/products/${product.productId}/restore-stock`, {
+                            quantity: product.quantity,
+                            selectedOptions: product.selectedOptions || {}
+                        }, { headers: { 'Authorization': token } });
+                        console.log(`Restored ${product.quantity} stock for product ${product.productId} on refund approval`);
+                    } catch (error) {
+                        console.error(`CRITICAL: Failed to restore stock for product ${product.productId} on refund approval:`, error.message);
+                    }
+                }
+            }
+
+            // Refund Stripe payment
+            if (order.paymentMethod === 'stripe' && order.paymentIntentId) {
+                try {
+                    console.log(`Triggering automatic Stripe refund for order ${order.orderNumber}, PI: ${order.paymentIntentId}`);
+                    await axios.post(`${paymentServiceUrl}/api/payments/refund`, {
+                        paymentIntentId: order.paymentIntentId
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Stripe refund successful for order ${order.orderNumber}`);
+                    await orderRepository.updateById(id, { paymentStatus: 'refunded' });
+                } catch (error) {
+                    const errorDetail = error.response?.data?.error?.message || error.message;
+                    console.error(`CRITICAL: Failed to trigger automatic Stripe refund for order ${order.orderNumber}:`, errorDetail);
+                }
+            }
+
+            // Refund Coins
+            if (order.coinsUsed > 0 && token) {
+                try {
+                    await axios.post(`${coinServiceUrl}/refund`, {
+                        userId: order.userId,
+                        amount: order.coinsUsed,
+                        description: `Refund for approved refund order ${order.orderNumber}`
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Refunded ${order.coinsUsed} coins for refund-approved order ${order.orderNumber}`);
+                } catch (error) {
+                    console.error('CRITICAL: Failed to refund coins on refund approval', error.message);
+                }
+            }
+
+            // Refund Voucher
+            if (order.voucher && order.voucher.code && token) {
+                try {
+                    await axios.post(`${voucherServiceUrl}/api/vouchers/refund`, {
+                        code: order.voucher.code
+                    }, { headers: { 'Authorization': token } });
+                    console.log(`Refunded voucher ${order.voucher.code} for refund-approved order ${order.orderNumber}`);
+                } catch (error) {
+                    console.error('CRITICAL: Failed to refund voucher on refund approval', error.message);
                 }
             }
         }

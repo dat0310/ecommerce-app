@@ -22,6 +22,21 @@ class PaymentController {
         }
     }
 
+    async refund(req, res) {
+        try {
+            const { paymentIntentId } = req.body;
+            const result = await paymentService.refund(paymentIntentId);
+            res.json(result);
+        } catch (error) {
+            console.error('Error processing refund:', error);
+            res.status(500).json({ 
+                error: { 
+                    message: error.message || 'Refund processing error' 
+                } 
+            });
+        }
+    }
+
     async healthCheck(req, res) {
         res.json({ status: 'OK', message: 'Payment Service is running' });
     }
