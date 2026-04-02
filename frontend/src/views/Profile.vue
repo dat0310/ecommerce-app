@@ -1332,18 +1332,156 @@ export default {
 </script>
 
 <style scoped>
+/* ===== Profile Page - Premium Design System ===== */
 .profile {
   min-height: 70vh;
 }
 
-.list-group-item a {
-  text-decoration: none;
-  color: inherit;
+/* Sidebar Navigation */
+.list-group-item {
+  border: none;
+  border-radius: var(--radius-md) !important;
+  margin-bottom: 0.25rem;
+  padding: 0.875rem 1rem;
+  transition: var(--transition-fast);
 }
 
-.list-group-item a.active {
-  font-weight: bold;
-  color: #007bff;
+.list-group-item:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.list-group-item a {
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: var(--transition-fast);
+}
+
+.list-group-item a.active,
+.list-group-item a:hover {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Cards */
+.card {
+  border: none;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  background: var(--surface);
+}
+
+.card-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+}
+
+.card-header h5,
+.card-header h4 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* Form Controls */
+.form-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.form-control,
+.form-select {
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body);
+  transition: var(--transition-fast);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-family: var(--font-body);
+  transition: var(--transition-fast);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+}
+
+.btn-outline-primary {
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  color: var(--primary);
+  background: transparent;
+  transition: var(--transition-fast);
+}
+
+.btn-outline-primary:hover {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.btn-outline-secondary {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--surface);
+  transition: var(--transition-fast);
+}
+
+.btn-outline-secondary:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+}
+
+/* Avatar */
+.rounded-circle {
+  border: 4px solid var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Badges */
+.badge.bg-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary)) !important;
+}
+
+.badge.bg-success {
+  background: linear-gradient(135deg, var(--success), #059669) !important;
+}
+
+.badge.bg-warning {
+  background: linear-gradient(135deg, var(--warning), #D97706) !important;
+  color: white !important;
+}
+
+.badge.bg-danger {
+  background: linear-gradient(135deg, var(--danger), #DC2626) !important;
 }
 
 /* Review Modal */
@@ -1353,22 +1491,22 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(15, 23, 42, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1050;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
 }
 
 .modal-content-custom {
-  background: #fff;
-  border-radius: 12px;
+  background: var(--surface);
+  border-radius: var(--radius-2xl);
   width: 90%;
   max-width: 520px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   animation: modalSlideIn 0.3s ease;
 }
 
@@ -1387,8 +1525,15 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e9ecef;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header-custom h5 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
 }
 
 .modal-body-custom {
@@ -1400,7 +1545,7 @@ export default {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--border);
 }
 
 /* Tracking Timeline */
@@ -1428,11 +1573,11 @@ export default {
   top: 14px;
   width: 2px;
   height: calc(100% - 4px);
-  background: #dee2e6;
+  background: var(--border);
 }
 
 .tracking-step.active:not(:last-child)::before {
-  background: #198754;
+  background: var(--success);
 }
 
 .tracking-dot {
@@ -1442,15 +1587,93 @@ export default {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--surface);
   box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
 }
 
 .tracking-content strong {
   font-size: 0.95rem;
+  font-family: var(--font-heading);
+  color: var(--text-primary);
 }
 
 .tracking-content small {
   font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Tables */
+.table {
+  --bs-table-bg: transparent;
+}
+
+.table thead th {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border);
+  padding: 1rem;
+}
+
+.table tbody td {
+  padding: 1rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+/* Alerts */
+.alert {
+  border: none;
+  border-radius: var(--radius-lg);
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.alert-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+}
+
+/* Coins Display */
+.text-warning {
+  color: var(--warning) !important;
+}
+
+/* ===== Responsive Styles ===== */
+@media (max-width: 992px) {
+  .list-group {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .list-group-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .card-body {
+    padding: 1.25rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .modal-content-custom {
+    width: 95%;
+    border-radius: var(--radius-xl);
+  }
+
+  .modal-header-custom,
+  .modal-body-custom,
+  .modal-footer-custom {
+    padding: 1rem;
+  }
 }
 </style>

@@ -4,10 +4,10 @@
       <div class="row">
         <!-- Sidebar -->
         <div class="col-md-3 col-lg-2 px-0">
-          <div class="sidebar bg-gradient-primary text-white vh-100">
-            <div class="p-4">
-              <div class="text-center mb-4">
-                <div class="admin-avatar mb-3">
+          <div class="sidebar bg-gradient-primary text-white">
+            <div class="p-3 pt-2">
+              <div class="text-center mb-3">
+                <div class="admin-avatar mb-2">
                   <i class="bi bi-shield-check fs-1"></i>
                 </div>
                 <h5 class="mb-0 fw-bold">Admin Panel</h5>
@@ -1007,10 +1007,10 @@ export default {
 <style scoped>
 .sidebar {
   position: fixed;
-  top: 0;
+  top: 76px;
   left: 0;
-  height: 100vh;
-  z-index: 1000;
+  height: calc(100vh - 76px);
+  z-index: 100;
 }
 
 .sidebar .nav-link {

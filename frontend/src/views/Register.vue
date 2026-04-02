@@ -206,13 +206,217 @@ export default {
 </script>
 
 <style scoped>
+/* ===== Register Page - Premium Design System ===== */
 .register {
-  min-height: 70vh;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   display: flex;
   align-items: center;
+  padding: 3rem 0;
+  position: relative;
+  overflow: hidden;
 }
+
+.register::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -20%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: float 6s ease-in-out infinite;
+}
+
+.register::after {
+  content: '';
+  position: absolute;
+  bottom: -30%;
+  left: -10%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: float 8s ease-in-out infinite reverse;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-25px) rotate(5deg); }
+}
+
 .card {
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-2xl);
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  position: relative;
+  z-index: 1;
+}
+
+.card-body {
+  padding: 2.5rem !important;
+}
+
+.card-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-size: 1.75rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.form-label {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.form-control,
+.form-select {
+  padding: 0.875rem 1.125rem;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  transition: var(--transition-base);
+  background: var(--surface);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+  outline: none;
+}
+
+.form-control::placeholder {
+  color: var(--text-muted);
+}
+
+.form-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.btn-primary.btn-lg {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 1rem 2rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  transition: var(--transition-fast);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+}
+
+.btn-primary.btn-lg:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35);
+}
+
+.btn-primary.btn-lg:disabled {
+  opacity: 0.7;
+  transform: none;
+}
+
+.btn-outline-primary.btn-lg {
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-lg);
+  padding: 0.9rem 2rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  color: var(--primary);
+  background: transparent;
+  transition: var(--transition-fast);
+}
+
+.btn-outline-primary.btn-lg:hover {
+  background: rgba(99, 102, 241, 0.1);
+  transform: translateY(-2px);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.text-center a {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.text-center a:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+.alert {
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+}
+
+.alert-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #DC2626;
+}
+
+/* ===== Responsive Styles ===== */
+@media (max-width: 768px) {
+  .register {
+    padding: 2rem 0;
+  }
+
+  .register::before,
+  .register::after {
+    display: none;
+  }
+
+  .card-body {
+    padding: 2rem !important;
+  }
+
+  .card-title {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .register {
+    padding: 1rem 0;
+  }
+
+  .card-body {
+    padding: 1.5rem !important;
+  }
+
+  .card-title {
+    font-size: 1.35rem;
+  }
+
+  .form-control,
+  .form-select {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .btn-lg {
+    padding: 0.875rem 1.5rem;
+    font-size: 0.95rem;
+  }
 }
 </style>

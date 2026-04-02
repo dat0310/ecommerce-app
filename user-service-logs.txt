@@ -1,8 +1,0 @@
-﻿
-> user-service@1.0.0 start
-> node server.js
-
-User service running on port 3002
-Connected to MongoDB
-Fetching orders for user: 694923583c3fd0dd86bbe668
-Error fetching orders for user: 694923583c3fd0dd86bbe668 Access denied. You can only view your own orders.
