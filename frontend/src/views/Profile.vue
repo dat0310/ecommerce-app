@@ -509,75 +509,113 @@
 
     <!-- Review Modal -->
     <div v-if="showReviewModal" class="modal-overlay" @click.self="closeReviewModal">
-      <div class="modal-content-custom">
-        <div class="modal-header-custom">
-          <h5 class="mb-0">
-            <i class="bi bi-star-fill text-warning me-2"></i>Write a Review
-          </h5>
-          <button class="btn-close" @click="closeReviewModal"></button>
+      <div class="review-modal">
+        <!-- Header -->
+        <div class="review-modal-header">
+          <div class="review-header-icon">
+            <i class="bi bi-star-fill"></i>
+          </div>
+          <h4>Write a Review</h4>
+          <p class="review-subtitle">Share your thoughts about this product</p>
+          <button class="review-close-btn" @click="closeReviewModal">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
-        <div class="modal-body-custom">
-          <!-- Product Info -->
-          <div class="d-flex align-items-center mb-4 p-3 bg-light rounded">
-            <img
-              :src="reviewTarget.image || 'https://via.placeholder.com/60'"
-              class="rounded me-3"
-              style="width: 60px; height: 60px; object-fit: cover;"
-              alt="Product"
-            >
-            <div>
-              <h6 class="mb-0">{{ reviewTarget.productName || reviewTarget.name }}</h6>
-              <small class="text-muted">Order: {{ reviewTarget.orderNumber }}</small>
-            </div>
-          </div>
 
-          <!-- Review Coin Reward Banner -->
-          <div class="mb-3 p-2 bg-warning bg-opacity-10 border border-warning rounded d-flex align-items-center">
-            <i class="bi bi-coin text-warning fs-4 me-2"></i>
-            <small class="text-warning fw-bold"><i class="bi bi-gift me-1"></i>Earn 500 ShopHub Coins for this review!</small>
+        <!-- Product Card -->
+        <div class="review-product-card">
+          <img
+            :src="reviewTarget.image || 'https://via.placeholder.com/80'"
+            alt="Product"
+            class="review-product-img"
+          >
+          <div class="review-product-info">
+            <h6>{{ reviewTarget.productName || reviewTarget.name }}</h6>
+            <span class="review-order-id">
+              <i class="bi bi-receipt me-1"></i>{{ reviewTarget.orderNumber }}
+            </span>
           </div>
+        </div>
 
-          <!-- Alerts -->
-          <div v-if="modalReviewError" class="alert alert-danger py-2 mb-3">
-            <i class="bi bi-exclamation-triangle me-2"></i>{{ modalReviewError }}
+        <!-- Coin Reward -->
+        <div class="review-reward-banner">
+          <div class="reward-icon">
+            <i class="bi bi-coin"></i>
           </div>
-          <div v-if="modalReviewSuccess" class="alert alert-success py-2 mb-3">
-            <i class="bi bi-check-circle me-2"></i>{{ modalReviewSuccess }}
+          <div class="reward-text">
+            <span class="reward-title">Earn 500 ShopHub Coins!</span>
+            <span class="reward-desc">Complete this review to earn rewards</span>
           </div>
+          <div class="reward-coins">+500</div>
+        </div>
 
-          <!-- Rating -->
-          <div class="mb-3">
-            <label class="form-label fw-bold">Your Rating</label>
-            <div class="star-rating-input">
+        <!-- Alerts -->
+        <div v-if="modalReviewError" class="review-alert review-alert-error">
+          <i class="bi bi-exclamation-circle"></i>
+          <span>{{ modalReviewError }}</span>
+        </div>
+        <div v-if="modalReviewSuccess" class="review-alert review-alert-success">
+          <i class="bi bi-check-circle"></i>
+          <span>{{ modalReviewSuccess }}</span>
+        </div>
+
+        <!-- Rating Section -->
+        <div class="review-section">
+          <label class="review-label">
+            <i class="bi bi-stars me-2"></i>How would you rate this product?
+          </label>
+          <div class="review-stars">
+            <div class="stars-container">
               <i v-for="n in 5" :key="'modal-star-'+n"
-                :class="n <= modalReview.rating ? 'bi bi-star-fill text-warning' : 'bi bi-star text-muted'"
-                class="fs-3 me-1"
-                style="cursor: pointer;"
+                :class="['star-icon', n <= modalReview.rating ? 'star-filled' : 'star-empty']"
                 @click="modalReview.rating = n"
-              ></i>
+                @mouseenter="hoverRating = n"
+                @mouseleave="hoverRating = 0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </i>
             </div>
+            <span class="rating-text" v-if="modalReview.rating > 0">
+              {{ ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'][modalReview.rating] }}
+            </span>
           </div>
+        </div>
 
-          <!-- Comment -->
-          <div class="mb-3">
-            <label class="form-label fw-bold">Your Comment</label>
+        <!-- Comment Section -->
+        <div class="review-section">
+          <label class="review-label">
+            <i class="bi bi-chat-quote me-2"></i>Write your review
+          </label>
+          <div class="review-textarea-wrapper">
             <textarea
               v-model="modalReview.comment"
-              class="form-control"
+              class="review-textarea"
               rows="4"
-              placeholder="Share your experience with this product..."
+              placeholder="What did you like or dislike? How was the quality?"
+              maxlength="500"
             ></textarea>
+            <span class="char-count">{{ modalReview.comment?.length || 0 }}/500</span>
           </div>
         </div>
-        <div class="modal-footer-custom">
-          <button class="btn btn-outline-secondary" @click="closeReviewModal">Cancel</button>
+
+        <!-- Footer -->
+        <div class="review-modal-footer">
+          <button class="review-btn review-btn-cancel" @click="closeReviewModal">
+            Cancel
+          </button>
           <button
-            class="btn btn-primary"
+            class="review-btn review-btn-submit"
             :disabled="modalReview.rating === 0 || modalSubmitting"
             @click="submitModalReview"
           >
-            <span v-if="modalSubmitting"><i class="bi bi-hourglass-split me-1"></i>Submitting...</span>
-            <span v-else><i class="bi bi-send me-1"></i>Submit Review</span>
+            <span v-if="modalSubmitting">
+              <i class="bi bi-arrow-repeat spin me-2"></i>Submitting...
+            </span>
+            <span v-else>
+              <i class="bi bi-send-fill me-2"></i>Submit Review
+            </span>
           </button>
         </div>
       </div>
@@ -585,87 +623,152 @@
 
     <!-- Order Details Modal -->
     <div v-if="showOrderDetail && orderDetail" class="modal-overlay" @click.self="showOrderDetail = false">
-      <div class="modal-content-custom" style="max-width: 650px;">
-        <div class="modal-header-custom">
-          <h5 class="mb-0">
-            <i class="bi bi-receipt me-2"></i>Order Details
-          </h5>
-          <button class="btn-close" @click="showOrderDetail = false"></button>
+      <div class="order-detail-modal">
+        <!-- Header -->
+        <div class="order-detail-header">
+          <div class="order-header-content">
+            <div class="order-header-icon">
+              <i class="bi bi-receipt-cutoff"></i>
+            </div>
+            <div>
+              <h4>Order Details</h4>
+              <span class="order-number-badge">{{ orderDetail.orderNumber }}</span>
+            </div>
+          </div>
+          <button class="order-close-btn" @click="showOrderDetail = false">
+            <i class="bi bi-x-lg"></i>
+          </button>
         </div>
-        <div class="modal-body-custom p-0" style="max-height: 70vh; overflow-y: auto;">
-          <!-- Shop Header -->
-          <div class="d-flex align-items-center gap-2 p-3 border-bottom bg-light">
-            <i class="bi bi-shop"></i>
-            <span class="fw-bold">{{ orderDetail.products[0]?.sellerName || 'Shop' }}</span>
-            <button class="btn btn-sm btn-danger text-white d-flex align-items-center gap-1 px-2" style="font-size: 0.8rem;" @click="contactSeller(orderDetail); showOrderDetail = false">
-              <i class="bi bi-chat-dots-fill"></i> Chat
+
+        <!-- Body -->
+        <div class="order-detail-body">
+          <!-- Status Banner -->
+          <div class="order-status-banner" :class="getStatusClass(orderDetail.status)">
+            <div class="status-icon">
+              <i :class="getStatusIcon(orderDetail.status)"></i>
+            </div>
+            <div class="status-info">
+              <span class="status-label">Order Status</span>
+              <span class="status-value">{{ getStatusDisplayText(orderDetail.status) }}</span>
+            </div>
+            <div class="status-date">
+              <i class="bi bi-calendar3 me-1"></i>
+              {{ new Date(orderDetail.createdAt).toLocaleDateString('vi-VN') }}
+            </div>
+          </div>
+
+          <!-- Shop Card -->
+          <div class="order-shop-card">
+            <div class="shop-info">
+              <div class="shop-avatar">
+                <i class="bi bi-shop"></i>
+              </div>
+              <div>
+                <span class="shop-name">{{ orderDetail.products[0]?.sellerName || 'Shop' }}</span>
+                <span class="shop-label">Seller</span>
+              </div>
+            </div>
+            <button class="shop-chat-btn" @click="contactSeller(orderDetail); showOrderDetail = false">
+              <i class="bi bi-chat-dots-fill"></i>
+              Chat
             </button>
           </div>
 
-          <!-- Product List -->
-          <div v-for="product in orderDetail.products" :key="product.productId" class="d-flex p-3 border-bottom">
-            <img
-              :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/80'"
-              @error="$event.target.src = 'https://via.placeholder.com/80'"
-              class="rounded me-3" style="width: 80px; height: 80px; object-fit: cover;" alt="Product"
-            >
-            <div class="flex-grow-1">
-              <h6 class="mb-1 text-dark">{{ product.productName || product.name || 'Product' }}</h6>
-              <div v-if="product.selectedOptions && Object.keys(product.selectedOptions).length > 0" class="text-muted small mb-1">
-                <span v-for="(value, key) in product.selectedOptions" :key="key" class="me-2">{{ key }}: {{ value }}</span>
-              </div>
-              <div class="text-dark small">x{{ product.quantity }}</div>
+          <!-- Products List -->
+          <div class="order-products">
+            <div class="section-title">
+              <i class="bi bi-bag-check me-2"></i>Items Ordered
             </div>
-            <div class="text-end">
-              <div class="text-danger fw-bold">{{ formatCurrency(product.price) }}</div>
+            <div v-for="product in orderDetail.products" :key="product.productId" class="order-product-item">
+              <img
+                :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/80'"
+                @error="$event.target.src = 'https://via.placeholder.com/80'"
+                class="product-image"
+                alt="Product"
+              >
+              <div class="product-details">
+                <h6 class="product-name">{{ product.productName || product.name || 'Product' }}</h6>
+                <div v-if="product.selectedOptions && Object.keys(product.selectedOptions).length > 0" class="product-options">
+                  <span v-for="(value, key) in product.selectedOptions" :key="key" class="option-tag">
+                    {{ key }}: {{ value }}
+                  </span>
+                </div>
+                <span class="product-qty">Qty: {{ product.quantity }}</span>
+              </div>
+              <div class="product-price">
+                {{ formatCurrency(product.price) }}
+              </div>
             </div>
           </div>
 
           <!-- Order Summary -->
-          <div class="p-3">
-            <div class="d-flex justify-content-between py-2 border-bottom">
-              <span class="text-muted">Subtotal ({{ orderDetail.products.reduce((s, p) => s + p.quantity, 0) }} items)</span>
-              <span class="fw-semibold">{{ formatCurrency(orderDetail.products.reduce((s, p) => s + p.price * p.quantity, 0)) }}</span>
+          <div class="order-summary">
+            <div class="section-title">
+              <i class="bi bi-calculator me-2"></i>Order Summary
             </div>
-            <div v-if="orderDetail.voucher && orderDetail.voucher.discountAmount" class="d-flex justify-content-between py-2 border-bottom">
-              <span class="text-muted">
+            <div class="summary-row">
+              <span>Subtotal ({{ orderDetail.products.reduce((s, p) => s + p.quantity, 0) }} items)</span>
+              <span>{{ formatCurrency(orderDetail.products.reduce((s, p) => s + p.price * p.quantity, 0)) }}</span>
+            </div>
+            <div class="summary-row" v-if="orderDetail.voucher && orderDetail.voucher.discountAmount">
+              <span class="discount-label">
                 <i class="bi bi-ticket-perforated me-1"></i>Voucher ({{ orderDetail.voucher.code }})
               </span>
-              <span class="text-success fw-semibold">-{{ formatCurrency(orderDetail.voucher.discountAmount) }}</span>
+              <span class="discount-value">-{{ formatCurrency(orderDetail.voucher.discountAmount) }}</span>
             </div>
-            <div v-if="orderDetail.coinDiscount && orderDetail.coinDiscount > 0" class="d-flex justify-content-between py-2 border-bottom">
-              <span class="text-muted">
-                <i class="bi bi-coin me-1"></i>Coin Discount ({{ orderDetail.coinsUsed }} coins)
+            <div class="summary-row" v-if="orderDetail.coinDiscount && orderDetail.coinDiscount > 0">
+              <span class="discount-label">
+                <i class="bi bi-coin me-1"></i>Coins Used ({{ orderDetail.coinsUsed }})
               </span>
-              <span class="text-success fw-semibold">-{{ formatCurrency(orderDetail.coinDiscount) }}</span>
+              <span class="discount-value">-{{ formatCurrency(orderDetail.coinDiscount) }}</span>
             </div>
-            <div class="d-flex justify-content-between py-2 mt-1">
-              <span class="fw-bold">Order Total</span>
-              <span class="text-danger fs-5 fw-bold">{{ formatCurrency(orderDetail.totalAmount) }}</span>
+            <div class="summary-row shipping">
+              <span><i class="bi bi-truck me-1"></i>Shipping</span>
+              <span :class="orderDetail.shippingFee > 0 ? '' : 'free-shipping'">
+                {{ orderDetail.shippingFee > 0 ? formatCurrency(orderDetail.shippingFee) : 'Free' }}
+              </span>
+            </div>
+            <div class="summary-total">
+              <span>Total</span>
+              <span class="total-amount">{{ formatCurrency(orderDetail.totalAmount) }}</span>
             </div>
           </div>
 
-          <!-- Shipping Address -->
-          <div v-if="orderDetail.shippingAddress" class="p-3 border-top bg-light">
-            <h6 class="fw-bold mb-2"><i class="bi bi-geo-alt me-1"></i>Shipping Address</h6>
-            <p class="mb-0 small">
-              <strong>{{ orderDetail.shippingAddress.fullName }}</strong>
-              <span v-if="orderDetail.shippingAddress.phoneNumber"> | {{ orderDetail.shippingAddress.phoneNumber }}</span><br>
-              {{ orderDetail.shippingAddress.streetBuildingHouse || orderDetail.shippingAddress.street || '' }}
-              <template v-if="orderDetail.shippingAddress.cityDistrictWard">, {{ orderDetail.shippingAddress.cityDistrictWard }}</template>
-            </p>
-          </div>
-
-          <!-- Order Info -->
-          <div class="p-3 border-top">
-            <div class="row small text-muted">
-              <div class="col-6">
-                <div class="mb-1"><strong>Order ID:</strong> {{ orderDetail.orderNumber }}</div>
-                <div><strong>Order Date:</strong> {{ new Date(orderDetail.createdAt).toLocaleString() }}</div>
+          <!-- Shipping & Payment Info -->
+          <div class="order-info-grid">
+            <!-- Shipping Address -->
+            <div class="info-card shipping-card" v-if="orderDetail.shippingAddress">
+              <div class="info-card-header">
+                <i class="bi bi-geo-alt-fill"></i>
+                <span>Shipping Address</span>
               </div>
-              <div class="col-6 text-end">
-                <div class="mb-1"><strong>Status:</strong> <span class="text-uppercase text-danger fw-bold">{{ getStatusDisplayText(orderDetail.status) }}</span></div>
-                <div><strong>Payment:</strong> {{ orderDetail.paymentMethod || 'COD' }}</div>
+              <div class="info-card-body">
+                <div class="recipient-name">{{ orderDetail.shippingAddress.fullName }}</div>
+                <div class="recipient-phone" v-if="orderDetail.shippingAddress.phoneNumber">
+                  <i class="bi bi-telephone me-1"></i>{{ orderDetail.shippingAddress.phoneNumber }}
+                </div>
+                <div class="recipient-address">
+                  {{ orderDetail.shippingAddress.streetBuildingHouse || orderDetail.shippingAddress.street || '' }}
+                  <template v-if="orderDetail.shippingAddress.cityDistrictWard">, {{ orderDetail.shippingAddress.cityDistrictWard }}</template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Payment Info -->
+            <div class="info-card payment-card">
+              <div class="info-card-header">
+                <i class="bi bi-credit-card-fill"></i>
+                <span>Payment Method</span>
+              </div>
+              <div class="info-card-body">
+                <div class="payment-method">
+                  <i :class="getPaymentIcon(orderDetail.paymentMethod)" class="payment-icon"></i>
+                  <span>{{ getPaymentLabel(orderDetail.paymentMethod) }}</span>
+                </div>
+                <div class="payment-status" :class="orderDetail.paymentStatus === 'completed' ? 'paid' : 'pending'">
+                  <i :class="orderDetail.paymentStatus === 'completed' ? 'bi bi-check-circle-fill' : 'bi bi-clock'"></i>
+                  {{ orderDetail.paymentStatus === 'completed' ? 'Paid' : 'Pending' }}
+                </div>
               </div>
             </div>
           </div>
@@ -728,33 +831,92 @@
     </div>
 
     <!-- Refund Modal -->
+    <!-- Refund Modal -->
     <div v-if="showRefundModal && refundOrder" class="modal-overlay" @click.self="closeRefundModal">
-      <div class="modal-content-custom" style="max-width: 500px;">
-        <div class="modal-header-custom">
-          <h5 class="mb-0">
-            <i class="bi bi-arrow-return-left me-2"></i>Request Refund
-          </h5>
-          <button class="btn-close" @click="closeRefundModal"></button>
-        </div>
-        <div class="modal-body-custom">
-          <div class="mb-3">
-            <label class="form-label fw-bold">Select Reason</label>
-            <select v-model="refundReason" class="form-select">
-              <option value="Item damaged or broken">Item damaged or broken</option>
-              <option value="Item does not match description">Item does not match description</option>
-              <option value="Missing quantity/accessories">Missing quantity/accessories</option>
-              <option value="Wrong item received">Wrong item received</option>
-              <option value="Other">Other</option>
-            </select>
+      <div class="refund-modal">
+        <!-- Header -->
+        <div class="refund-modal-header">
+          <div class="refund-header-icon">
+            <i class="bi bi-arrow-counterclockwise"></i>
           </div>
-          <div class="mb-3">
-            <label class="form-label fw-bold">Description (Optional)</label>
-            <textarea v-model="refundDescription" class="form-control" rows="3" placeholder="Provide more details for the refund..."></textarea>
+          <h4>Request Refund</h4>
+          <p class="refund-subtitle">Tell us why you want to return this order</p>
+          <button class="refund-close-btn" @click="closeRefundModal">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+
+        <!-- Order Info Preview -->
+        <div class="refund-order-preview">
+          <div class="preview-label">
+            <i class="bi bi-receipt me-2"></i>Order
+          </div>
+          <div class="preview-value">{{ refundOrder.orderNumber }}</div>
+          <div class="preview-amount">{{ formatCurrency(refundOrder.totalAmount) }}</div>
+        </div>
+
+        <!-- Refund Reasons -->
+        <div class="refund-section">
+          <label class="refund-label">
+            <i class="bi bi-question-circle me-2"></i>What's the reason for your refund?
+          </label>
+          <div class="refund-reasons">
+            <label 
+              v-for="reason in refundReasons" 
+              :key="reason.value"
+              class="reason-option"
+              :class="{ selected: refundReason === reason.value }"
+            >
+              <input 
+                type="radio" 
+                :value="reason.value" 
+                v-model="refundReason"
+                class="reason-radio"
+              >
+              <div class="reason-icon">
+                <i :class="reason.icon"></i>
+              </div>
+              <span class="reason-text">{{ reason.label }}</span>
+              <i class="bi bi-check-circle-fill check-icon"></i>
+            </label>
           </div>
         </div>
-        <div class="modal-footer-custom">
-          <button class="btn btn-outline-secondary" @click="closeRefundModal">Cancel</button>
-          <button class="btn btn-primary" :disabled="!refundReason" @click="submitRefundRequest">Submit Request</button>
+
+        <!-- Description -->
+        <div class="refund-section">
+          <label class="refund-label">
+            <i class="bi bi-chat-text me-2"></i>Additional Details <span class="optional-tag">Optional</span>
+          </label>
+          <div class="refund-textarea-wrapper">
+            <textarea
+              v-model="refundDescription"
+              class="refund-textarea"
+              rows="3"
+              placeholder="Describe the issue in more detail to help us process your request faster..."
+              maxlength="500"
+            ></textarea>
+            <span class="char-count">{{ refundDescription?.length || 0 }}/500</span>
+          </div>
+        </div>
+
+        <!-- Info Notice -->
+        <div class="refund-notice">
+          <i class="bi bi-info-circle"></i>
+          <span>Your refund request will be reviewed by the seller within 2-3 business days. You'll be notified once a decision is made.</span>
+        </div>
+
+        <!-- Footer -->
+        <div class="refund-modal-footer">
+          <button class="refund-btn refund-btn-cancel" @click="closeRefundModal">
+            Cancel
+          </button>
+          <button
+            class="refund-btn refund-btn-submit"
+            :disabled="!refundReason"
+            @click="submitRefundRequest"
+          >
+            <i class="bi bi-send-fill me-2"></i>Submit Request
+          </button>
         </div>
       </div>
     </div>
@@ -813,6 +975,7 @@ export default {
       modalReviewSuccess: '',
       modalSubmitting: false,
       reviewedKeys: new Set(),
+      hoverRating: 0,
       // Order Detail Modal
       showOrderDetail: false,
       orderDetail: null,
@@ -822,8 +985,15 @@ export default {
       // Refund Modal
       showRefundModal: false,
       refundOrder: null,
-      refundReason: 'Item damaged or broken',
-      refundDescription: ''
+      refundReason: '',
+      refundDescription: '',
+      refundReasons: [
+        { value: 'Item damaged or broken', label: 'Item damaged or broken', icon: 'bi bi-box-seam' },
+        { value: 'Item does not match description', label: 'Doesn\'t match description', icon: 'bi bi-exclamation-triangle' },
+        { value: 'Missing quantity/accessories', label: 'Missing items/accessories', icon: 'bi bi-dash-circle' },
+        { value: 'Wrong item received', label: 'Wrong item received', icon: 'bi bi-shuffle' },
+        { value: 'Other', label: 'Other reason', icon: 'bi bi-three-dots' }
+      ]
     }
   },
   computed: {
@@ -1084,14 +1254,51 @@ export default {
     },
     getStatusClass(status) {
       const classes = {
-        pending: 'text-warning',
-        confirmed: 'text-info',
-        processing: 'text-primary',
-        shipped: 'text-secondary',
-        delivered: 'text-success',
-        cancelled: 'text-danger'
+        pending: 'status-pending',
+        confirmed: 'status-confirmed',
+        processing: 'status-processing',
+        shipped: 'status-shipped',
+        delivered: 'status-delivered',
+        completed: 'status-completed',
+        cancelled: 'status-cancelled',
+        refund_requested: 'status-refund',
+        refund_approved: 'status-refund',
+        refund_rejected: 'status-cancelled'
       }
-      return classes[status] || 'text-muted'
+      return classes[status] || 'status-pending'
+    },
+    getStatusIcon(status) {
+      const icons = {
+        pending: 'bi bi-clock-fill',
+        confirmed: 'bi bi-check-circle-fill',
+        processing: 'bi bi-gear-fill',
+        shipped: 'bi bi-truck',
+        delivered: 'bi bi-box-seam-fill',
+        completed: 'bi bi-check-all',
+        cancelled: 'bi bi-x-circle-fill',
+        refund_requested: 'bi bi-arrow-repeat',
+        refund_approved: 'bi bi-arrow-counterclockwise',
+        refund_rejected: 'bi bi-x-octagon-fill'
+      }
+      return icons[status] || 'bi bi-clock-fill'
+    },
+    getPaymentIcon(method) {
+      const icons = {
+        stripe: 'bi bi-stripe',
+        credit_card: 'bi bi-credit-card-fill',
+        paypal: 'bi bi-paypal',
+        cash_on_delivery: 'bi bi-cash-stack'
+      }
+      return icons[method] || 'bi bi-wallet2'
+    },
+    getPaymentLabel(method) {
+      const labels = {
+        stripe: 'Stripe',
+        credit_card: 'Credit Card',
+        paypal: 'PayPal',
+        cash_on_delivery: 'Cash on Delivery'
+      }
+      return labels[method] || method || 'COD'
     },
     viewOrderDetails(order) {
       this.orderDetail = order
@@ -1674,6 +1881,1289 @@ export default {
   .modal-body-custom,
   .modal-footer-custom {
     padding: 1rem;
+  }
+}
+
+/* ===== Review Modal Styles ===== */
+.review-modal {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+  animation: reviewModalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes reviewModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.review-modal-header {
+  position: relative;
+  text-align: center;
+  padding: 2rem 1.5rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 24px 24px 0 0;
+  color: white;
+}
+
+.review-header-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.review-header-icon i {
+  font-size: 1.75rem;
+  color: #fbbf24;
+}
+
+.review-modal-header h4 {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.review-subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+
+.review-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.review-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.review-product-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  margin: -1.5rem 1.5rem 1rem;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.review-product-img {
+  width: 70px;
+  height: 70px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid #f1f5f9;
+}
+
+.review-product-info h6 {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.review-order-id {
+  font-size: 0.8rem;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.review-reward-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 1.5rem 1.25rem;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+  border: 1px solid #fbbf24;
+}
+
+.reward-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reward-icon i {
+  font-size: 1.25rem;
+  color: white;
+}
+
+.reward-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.reward-title {
+  font-weight: 700;
+  color: #92400e;
+  font-size: 0.9rem;
+}
+
+.reward-desc {
+  font-size: 0.75rem;
+  color: #a16207;
+}
+
+.reward-coins {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #b45309;
+  background: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+}
+
+.review-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 1.5rem 1rem;
+  padding: 0.875rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+}
+
+.review-alert-error {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.review-alert-success {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.review-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.review-label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.review-stars {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stars-container {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.star-icon {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.star-icon svg {
+  width: 36px;
+  height: 36px;
+}
+
+.star-icon:hover {
+  transform: scale(1.2);
+}
+
+.star-filled {
+  color: #fbbf24;
+  filter: drop-shadow(0 2px 4px rgba(251, 191, 36, 0.4));
+}
+
+.star-empty {
+  color: #d1d5db;
+}
+
+.star-empty:hover {
+  color: #fcd34d;
+}
+
+.rating-text {
+  font-weight: 600;
+  color: #f59e0b;
+  font-size: 0.95rem;
+  background: #fef3c7;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+}
+
+.review-textarea-wrapper {
+  position: relative;
+}
+
+.review-textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  resize: none;
+  transition: all 0.2s ease;
+  background: #f8fafc;
+}
+
+.review-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.review-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.char-count {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 1rem;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.review-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.review-btn {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.review-btn-cancel {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.review-btn-cancel:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.review-btn-submit {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.review-btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.review-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Order Detail Modal Styles ===== */
+.order-detail-modal {
+  background: #ffffff;
+  border-radius: 24px;
+  width: 95%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+  animation: orderModalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes orderModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.order-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+  color: white;
+}
+
+.order-header-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.order-header-icon {
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.order-header-content h4 {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.order-number-badge {
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-family: monospace;
+}
+
+.order-close-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.order-close-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: rotate(90deg);
+}
+
+.order-detail-body {
+  max-height: calc(90vh - 90px);
+  overflow-y: auto;
+  padding: 0;
+}
+
+/* Status Banner */
+.order-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  margin: 1rem 1rem 0;
+  border-radius: 12px;
+}
+
+.order-status-banner.status-pending {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+}
+
+.order-status-banner.status-confirmed,
+.order-status-banner.status-processing {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border: 1px solid #3b82f6;
+}
+
+.order-status-banner.status-shipped {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  border: 1px solid #6366f1;
+}
+
+.order-status-banner.status-delivered,
+.order-status-banner.status-completed {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #10b981;
+}
+
+.order-status-banner.status-cancelled {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border: 1px solid #ef4444;
+}
+
+.order-status-banner.status-refund {
+  background: linear-gradient(135deg, #fae8ff 0%, #f5d0fe 100%);
+  border: 1px solid #a855f7;
+}
+
+.status-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-pending .status-icon { color: #f59e0b; }
+.status-confirmed .status-icon, .status-processing .status-icon { color: #3b82f6; }
+.status-shipped .status-icon { color: #6366f1; }
+.status-delivered .status-icon, .status-completed .status-icon { color: #10b981; }
+.status-cancelled .status-icon { color: #ef4444; }
+.status-refund .status-icon { color: #a855f7; }
+
+.status-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-label {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-value {
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.status-date {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* Shop Card */
+.order-shop-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  margin: 1rem 1rem 0;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.shop-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.shop-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+}
+
+.shop-name {
+  font-weight: 600;
+  color: #1e293b;
+  display: block;
+}
+
+.shop-label {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.shop-chat-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shop-chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Products List */
+.order-products {
+  padding: 1rem 1.5rem;
+}
+
+.section-title {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+.order-product-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.product-image {
+  width: 70px;
+  height: 70px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.product-details {
+  flex: 1;
+}
+
+.product-name {
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+
+.product-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.option-tag {
+  font-size: 0.75rem;
+  background: #e2e8f0;
+  color: #475569;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+}
+
+.product-qty {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.product-price {
+  font-weight: 700;
+  color: #ef4444;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+/* Order Summary */
+.order-summary {
+  padding: 1rem 1.5rem;
+  background: #f8fafc;
+  margin: 0 1rem;
+  border-radius: 12px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+  font-size: 0.9rem;
+  color: #64748b;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.summary-row:last-of-type {
+  border-bottom: none;
+}
+
+.discount-label {
+  color: #10b981;
+}
+
+.discount-value {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.free-shipping {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+  border-top: 2px solid #e2e8f0;
+}
+
+.summary-total span:first-child {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 1rem;
+}
+
+.total-amount {
+  font-weight: 800;
+  color: #ef4444;
+  font-size: 1.35rem;
+}
+
+/* Info Grid */
+.order-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.info-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.info-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: white;
+}
+
+.shipping-card .info-card-header {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.payment-card .info-card-header {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+}
+
+.info-card-body {
+  padding: 1rem;
+}
+
+.recipient-name {
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+}
+
+.recipient-phone {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.recipient-address {
+  font-size: 0.85rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.payment-method {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 0.5rem;
+}
+
+.payment-icon {
+  font-size: 1.25rem;
+  color: #6366f1;
+}
+
+.payment-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+  font-weight: 600;
+}
+
+.payment-status.paid {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.payment-status.pending {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+/* Order Detail Responsive */
+@media (max-width: 576px) {
+  .order-detail-modal {
+    width: 98%;
+    border-radius: 20px;
+    max-height: 95vh;
+  }
+
+  .order-detail-header {
+    padding: 1rem;
+  }
+
+  .order-header-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 1.25rem;
+  }
+
+  .order-header-content h4 {
+    font-size: 1.1rem;
+  }
+
+  .order-status-banner {
+    margin: 0.75rem;
+    padding: 0.875rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .status-date {
+    width: 100%;
+    margin-top: 0.5rem;
+    text-align: right;
+  }
+
+  .order-shop-card {
+    margin: 0.75rem;
+  }
+
+  .order-products {
+    padding: 0.75rem;
+  }
+
+  .order-product-item {
+    padding: 0.75rem;
+  }
+
+  .product-image {
+    width: 60px;
+    height: 60px;
+  }
+
+  .order-summary {
+    margin: 0 0.75rem;
+  }
+
+  .order-info-grid {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+  }
+
+  .total-amount {
+    font-size: 1.2rem;
+  }
+}
+
+/* ===== Refund Modal Styles ===== */
+.refund-modal {
+  background: #ffffff;
+  border-radius: 24px;
+  width: 95%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+  animation: refundModalIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes refundModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.refund-modal-header {
+  position: relative;
+  text-align: center;
+  padding: 2rem 1.5rem 1.5rem;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+}
+
+.refund-header-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  backdrop-filter: blur(10px);
+}
+
+.refund-header-icon i {
+  font-size: 1.75rem;
+}
+
+.refund-modal-header h4 {
+  margin: 0 0 0.25rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
+.refund-subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.9rem;
+}
+
+.refund-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.refund-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.refund-order-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  margin: -1rem 1rem 1rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.preview-label {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.preview-value {
+  flex: 1;
+  font-weight: 600;
+  color: #1e293b;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.preview-amount {
+  font-weight: 700;
+  color: #ef4444;
+  font-size: 1.1rem;
+}
+
+.refund-section {
+  padding: 0 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.refund-label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.optional-tag {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #94a3b8;
+  background: #f1f5f9;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  margin-left: 0.5rem;
+}
+
+.refund-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reason-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.reason-option:hover {
+  border-color: #f97316;
+  background: #fff7ed;
+}
+
+.reason-option.selected {
+  border-color: #f97316;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+}
+
+.reason-radio {
+  display: none;
+}
+
+.reason-icon {
+  width: 36px;
+  height: 36px;
+  background: #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.reason-option.selected .reason-icon {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: white;
+}
+
+.reason-text {
+  flex: 1;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.reason-option.selected .reason-text {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.check-icon {
+  color: #f97316;
+  font-size: 1.1rem;
+  opacity: 0;
+  transform: scale(0);
+  transition: all 0.2s ease;
+}
+
+.reason-option.selected .check-icon {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.refund-textarea-wrapper {
+  position: relative;
+}
+
+.refund-textarea {
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  resize: none;
+  transition: all 0.2s ease;
+  background: #f8fafc;
+}
+
+.refund-textarea:focus {
+  outline: none;
+  border-color: #f97316;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.1);
+}
+
+.refund-textarea::placeholder {
+  color: #94a3b8;
+}
+
+.refund-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin: 0 1.5rem 1.25rem;
+  padding: 0.875rem 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: #1e40af;
+  line-height: 1.5;
+}
+
+.refund-notice i {
+  font-size: 1rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+.refund-modal-footer {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+}
+
+.refund-btn {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refund-btn-cancel {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+}
+
+.refund-btn-cancel:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.refund-btn-submit {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  border: none;
+  color: white;
+  box-shadow: 0 4px 15px rgba(249, 115, 22, 0.4);
+}
+
+.refund-btn-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.5);
+}
+
+.refund-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Refund Modal Responsive */
+@media (max-width: 576px) {
+  .refund-modal {
+    width: 98%;
+    border-radius: 20px;
+  }
+
+  .refund-modal-header {
+    padding: 1.5rem 1rem 1.25rem;
+  }
+
+  .refund-header-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .refund-modal-header h4 {
+    font-size: 1.25rem;
+  }
+
+  .refund-order-preview {
+    margin: -0.75rem 0.75rem 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .preview-amount {
+    width: 100%;
+    text-align: right;
+    margin-top: 0.5rem;
+  }
+
+  .refund-section {
+    padding: 0 1rem;
+  }
+
+  .refund-notice {
+    margin: 0 1rem 1rem;
+  }
+
+  .refund-modal-footer {
+    padding: 1rem;
+  }
+
+  .reason-option {
+    padding: 0.75rem;
+  }
+
+  .reason-icon {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Review Modal Responsive */
+@media (max-width: 576px) {
+  .review-modal {
+    width: 95%;
+    border-radius: 20px;
+  }
+
+  .review-modal-header {
+    padding: 1.5rem 1rem 1.25rem;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .review-header-icon {
+    width: 50px;
+    height: 50px;
+  }
+
+  .review-modal-header h4 {
+    font-size: 1.25rem;
+  }
+
+  .review-product-card {
+    margin: -1rem 1rem 1rem;
+    padding: 0.875rem;
+  }
+
+  .review-product-img {
+    width: 60px;
+    height: 60px;
+  }
+
+  .review-reward-banner,
+  .review-section,
+  .review-alert {
+    margin-left: 1rem;
+    margin-right: 1rem;
+  }
+
+  .review-modal-footer {
+    padding: 1rem;
+  }
+
+  .star-icon svg {
+    width: 32px;
+    height: 32px;
   }
 }
 </style>

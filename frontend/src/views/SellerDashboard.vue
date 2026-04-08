@@ -217,8 +217,7 @@
                       <div class="card">
                         <img 
                           :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/200'"
-                          class="card-img-top"
-                          style="height: 200px; object-fit: cover;"
+                          class="card-img-top product-card-img"
                           :alt="product.name"
                         >
                         <div class="card-body">
@@ -438,32 +437,44 @@
 
                         <!-- Auto-generated Combinations Table -->
                         <div v-if="generatedCombinations.length > 0" class="card mb-3 border-primary">
-                          <div class="card-header bg-primary text-white py-2">
-                            <h6 class="mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Price & Stock per Combination ({{ generatedCombinations.length }})</h6>
+                          <div class="card-header bg-primary text-white py-2 d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Price & Stock per Combination ({{ productCombinations.length }})</h6>
+                            <small class="opacity-75">Click row to delete</small>
                           </div>
                           <div class="card-body p-0">
                             <div class="table-responsive">
-                              <table class="table table-sm table-hover mb-0">
+                              <table class="table table-sm table-hover mb-0 combinations-table">
                                 <thead class="table-light">
                                   <tr>
-                                    <th v-for="v in variants" :key="'th-'+v.name">{{ v.name || 'Option' }}</th>
-                                    <th style="width: 150px;">Price ($)</th>
-                                    <th style="width: 120px;">Stock</th>
+                                    <th v-for="v in variants" :key="'th-'+v.name" class="text-center">{{ v.name || 'Option' }}</th>
+                                    <th class="text-center" style="width: 140px;">Price ($)</th>
+                                    <th class="text-center" style="width: 110px;">Stock</th>
+                                    <th class="text-center" style="width: 50px;"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  <tr v-for="(combo, cIndex) in productCombinations" :key="cIndex">
-                                    <td v-for="v in variants" :key="'td-'+v.name+'-'+cIndex" class="align-middle">
-                                      <span class="badge bg-light text-dark">{{ combo.options[v.name] }}</span>
+                                  <tr v-for="(combo, cIndex) in productCombinations" :key="cIndex" class="combination-row">
+                                    <td v-for="v in variants" :key="'td-'+v.name+'-'+cIndex" class="align-middle text-center">
+                                      <span class="badge bg-light text-dark border">{{ combo.options[v.name] }}</span>
                                     </td>
-                                    <td>
+                                    <td class="align-middle">
                                       <div class="input-group input-group-sm">
                                         <span class="input-group-text">$</span>
-                                        <input type="number" class="form-control form-control-sm" v-model.number="combo.price" min="0" step="0.01" placeholder="0">
+                                        <input type="number" class="form-control form-control-sm text-end" v-model.number="combo.price" min="0" step="0.01" placeholder="0.00">
                                       </div>
                                     </td>
-                                    <td>
-                                      <input type="number" class="form-control form-control-sm" v-model.number="combo.stock" min="0" placeholder="0">
+                                    <td class="align-middle">
+                                      <input type="number" class="form-control form-control-sm text-center" v-model.number="combo.stock" min="0" placeholder="0">
+                                    </td>
+                                    <td class="align-middle text-center">
+                                      <button 
+                                        type="button" 
+                                        class="btn btn-sm btn-outline-danger btn-delete-combo"
+                                        @click="removeCombination(cIndex)"
+                                        title="Delete this combination"
+                                      >
+                                        <i class="bi bi-trash"></i>
+                                      </button>
                                     </td>
                                   </tr>
                                 </tbody>
@@ -731,6 +742,8 @@ export default {
       existingImages: [],
       variants: [],
       productCombinations: [],
+      deletedCombinationKeys: [], // Track manually deleted combinations
+      isHydratingProductForm: false,
       productForm: {
         name: '',
         price: '',
@@ -784,15 +797,23 @@ export default {
   watch: {
     generatedCombinations: {
       handler(newCombos) {
-        const updated = newCombos.map(comboOpts => {
-          const key = JSON.stringify(comboOpts)
-          const existing = this.productCombinations.find(
-            pc => JSON.stringify(pc.options) === key
-          )
-          return existing
-            ? { ...existing }
-            : { options: comboOpts, price: Number(this.productForm.price) || 0, stock: 0 }
-        })
+        if (this.isHydratingProductForm) return
+
+        const updated = newCombos
+          .filter(comboOpts => {
+            // Skip combinations that were manually deleted
+            const key = this.getCombinationKey(comboOpts)
+            return !this.deletedCombinationKeys.includes(key)
+          })
+          .map(comboOpts => {
+            const key = this.getCombinationKey(comboOpts)
+            const existing = this.productCombinations.find(
+              pc => this.getCombinationKey(pc.options) === key
+            )
+            return existing
+              ? { ...existing }
+              : { options: comboOpts, price: Number(this.productForm.price) || 0, stock: 0 }
+          })
         this.productCombinations = updated
       },
       deep: true
@@ -802,6 +823,22 @@ export default {
     await this.loadSellerData()
   },
   methods: {
+    getCombinationKey(options) {
+      if (!options) return '{}'
+
+      const plainOptions = options instanceof Map
+        ? Object.fromEntries(options)
+        : options
+
+      const sortedOptions = Object.keys(plainOptions)
+        .sort()
+        .reduce((acc, key) => {
+          acc[key] = plainOptions[key]
+          return acc
+        }, {})
+
+      return JSON.stringify(sortedOptions)
+    },
     async loadSellerData() {
       try {
         await Promise.all([
@@ -865,8 +902,8 @@ export default {
           formData.append('images', file)
         }
 
-        // Send existing images for edit mode
-        if (this.editingProduct && this.existingImages.length > 0) {
+        // Send existing images for edit mode (always send even if empty to preserve state)
+        if (this.editingProduct) {
           formData.append('existingImages', JSON.stringify(this.existingImages))
         }
 
@@ -900,19 +937,14 @@ export default {
           })
         }
 
-        // Send product combinations (price & stock per combination)
-        if (this.productCombinations.length > 0) {
-          const cleanCombinations = this.productCombinations
-            .filter(c => c.price > 0)
-            .map(c => ({
-              options: c.options,
-              price: Number(c.price) || 0,
-              stock: Number(c.stock) || 0
-            }))
-          if (cleanCombinations.length > 0) {
-            formData.append('productCombinations', JSON.stringify(cleanCombinations))
-          }
-        }
+        // Always send combinations (including empty) so deletions are persisted.
+        const cleanCombinations = this.productCombinations
+          .map(c => ({
+            options: c.options,
+            price: Number(c.price) || 0,
+            stock: Number(c.stock) || 0
+          }))
+        formData.append('productCombinations', JSON.stringify(cleanCombinations))
 
         const config = { headers: { 'Content-Type': 'multipart/form-data' } }
 
@@ -934,6 +966,7 @@ export default {
       }
     },
     editProduct(product) {
+      this.isHydratingProductForm = true
       this.editingProduct = product
       this.productForm = {
         name: product.name,
@@ -944,6 +977,7 @@ export default {
       }
       this.imageFiles = []
       this.imagePreviews = []
+      this.deletedCombinationKeys = []
       if (product.images && product.images.length > 0) {
         this.existingImages = [...product.images]
       } else if (product.image) {
@@ -969,15 +1003,30 @@ export default {
       } else {
         this.productCombinations = []
       }
+
+      // Persist deleted rows across edit sessions by marking combinations that are
+      // valid from variants but absent in stored product combinations as deleted.
+      const existingKeys = new Set(
+        this.productCombinations.map(c => this.getCombinationKey(c.options))
+      )
+      this.deletedCombinationKeys = this.generatedCombinations
+        .map(c => this.getCombinationKey(c))
+        .filter(key => !existingKeys.has(key))
+
       this.activeTab = 'add-product'
+      this.$nextTick(() => {
+        this.isHydratingProductForm = false
+      })
     },
     cancelEdit() {
       this.editingProduct = null
+      this.isHydratingProductForm = false
       this.imageFiles = []
       this.imagePreviews = []
       this.existingImages = []
       this.variants = []
       this.productCombinations = []
+      this.deletedCombinationKeys = []
       this.productForm = {
         name: '',
         price: '',
@@ -1066,6 +1115,17 @@ export default {
       opt.image = ''
       opt.imageFile = null
       opt.imagePreview = ''
+    },
+    removeCombination(index) {
+      const combo = this.productCombinations[index]
+      if (combo) {
+        // Track deleted combination so watcher won't recreate it
+        const key = this.getCombinationKey(combo.options)
+        if (!this.deletedCombinationKeys.includes(key)) {
+          this.deletedCombinationKeys.push(key)
+        }
+      }
+      this.productCombinations.splice(index, 1)
     },
     async deleteProduct(productId) {
       if (confirm('Are you sure you want to delete this product?')) {
@@ -1292,6 +1352,68 @@ export default {
   border: none;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   border-radius: 12px;
+  transition: none;
+}
+
+.card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.product-card-img {
+  width: 100%;
+  height: 200px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 12px 12px 0 0;
+  transition: none;
+}
+
+.card:hover .product-card-img {
+  transform: none;
+}
+
+/* Equal height product cards */
+.col-md-6.col-lg-4.mb-3 {
+  display: flex;
+}
+
+.col-md-6.col-lg-4.mb-3 > .card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.col-md-6.col-lg-4.mb-3 > .card:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+}
+
+.col-md-6.col-lg-4.mb-3 > .card > .card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.col-md-6.col-lg-4.mb-3 > .card > .card-body .card-title {
+  min-height: 48px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.col-md-6.col-lg-4.mb-3 > .card > .card-body .card-text.text-muted {
+  min-height: 48px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.col-md-6.col-lg-4.mb-3 > .card > .card-body > .d-flex:last-child {
+  margin-top: auto;
 }
 
 .table th {
@@ -1330,8 +1452,8 @@ export default {
 
 .image-preview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
 }
 
 .preview-item {
@@ -1430,6 +1552,61 @@ export default {
 
 .variant-table .form-control-sm {
   font-size: 0.8125rem;
+}
+
+/* Combinations Table */
+.combinations-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.combinations-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.75rem 0.5rem;
+  background: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.combinations-table tbody td {
+  padding: 0.5rem;
+  vertical-align: middle;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.combinations-table .combination-row:hover {
+  background-color: #f8f9fa;
+}
+
+.combinations-table .badge {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.4em 0.75em;
+  color: #212529;
+}
+
+.combinations-table .form-control-sm {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+}
+
+.combinations-table .input-group-text {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  background: #f8f9fa;
+}
+
+.btn-delete-combo {
+  padding: 0.25rem 0.5rem;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.combination-row:hover .btn-delete-combo {
+  opacity: 1;
 }
 
 /* Refund Response Modal */

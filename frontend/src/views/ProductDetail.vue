@@ -32,11 +32,28 @@
         <div class="col-lg-6" data-aos="fade-right">
           <div class="product-image-container">
             <div class="main-image mb-3">
+              <button 
+                v-if="productImages.length > 1" 
+                class="image-nav-btn prev-btn"
+                @click="prevImage"
+              >
+                <i class="bi bi-chevron-left"></i>
+              </button>
               <img 
                 :src="selectedImage || productImages[0]" 
                 :alt="product.name" 
                 class="img-fluid rounded-custom shadow-lg"
               >
+              <button 
+                v-if="productImages.length > 1" 
+                class="image-nav-btn next-btn"
+                @click="nextImage"
+              >
+                <i class="bi bi-chevron-right"></i>
+              </button>
+              <div v-if="productImages.length > 1" class="image-counter">
+                {{ currentImageIndex + 1 }} / {{ productImages.length }}
+              </div>
             </div>
             <div v-if="productImages.length > 1" class="image-thumbnails d-flex gap-2">
               <img 
@@ -45,7 +62,7 @@
                 :src="img" 
                 :alt="product.name + ' image ' + (index + 1)" 
                 class="img-thumbnail"
-                :class="{ active: selectedImage === img }"
+                :class="{ active: (selectedImage || productImages[0]) === img }"
                 @click="selectedImage = img"
               >
             </div>
@@ -88,18 +105,17 @@
 
             <!-- Variant Selection -->
             <div v-if="hasVariants" class="variant-selection mb-4">
-              <div v-for="variant in product.variants" :key="variant.name" class="mb-3">
+              <div v-for="variant in filteredVariants" :key="variant.name" class="mb-3">
                 <label class="form-label fw-semibold">{{ variant.name }}: <span v-if="selectedVariants[variant.name]" class="text-primary">{{ selectedVariants[variant.name] }}</span></label>
                 <div class="d-flex flex-wrap gap-2">
                   <button
                     v-for="opt in variant.options"
                     :key="opt.value"
                     type="button"
-                    class="btn btn-sm variant-option-btn d-flex align-items-center gap-1"
+                    class="btn btn-sm variant-option-btn"
                     :class="selectedVariants[variant.name] === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
                     @click="selectVariant(variant.name, opt.value, opt.image)"
                   >
-                    <img v-if="opt.image" :src="opt.image" :alt="opt.value" class="rounded" style="width: 24px; height: 24px; object-fit: cover;">
                     {{ opt.value }}
                   </button>
                 </div>
@@ -372,6 +388,11 @@ export default {
       }
       return ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80']
     },
+    currentImageIndex() {
+      const currentImg = this.selectedImage || this.productImages[0]
+      const index = this.productImages.indexOf(currentImg)
+      return index >= 0 ? index : 0
+    },
     hasVariants() {
       return this.product && this.product.variants && this.product.variants.length > 0
     },
@@ -431,6 +452,45 @@ export default {
       const userId = this.currentUser._id || this.currentUser.id
       return this.product.sellerId === userId
     },
+    // Filter variants to only include options that exist in productCombinations
+    // AND are compatible with currently selected options
+    filteredVariants() {
+      if (!this.hasVariants) return []
+      if (!this.hasCombinations) return this.product.variants
+
+      // Get combinations that match currently selected options
+      const getMatchingCombinations = (excludeVariant = null) => {
+        return this.product.productCombinations.filter(combo => {
+          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+          // Check if this combination matches all currently selected options (except the excluded variant)
+          return Object.entries(this.selectedVariants).every(([key, value]) => {
+            if (key === excludeVariant) return true // Skip the variant we're filtering for
+            if (!value) return true // Skip unselected variants
+            return opts[key] === value
+          })
+        })
+      }
+
+      // Filter variants and their options based on available combinations
+      return this.product.variants.map(variant => {
+        // Get combinations that match all OTHER selected options
+        const matchingCombos = getMatchingCombinations(variant.name)
+        
+        // Extract valid values for this variant from matching combinations
+        const validValues = new Set()
+        matchingCombos.forEach(combo => {
+          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+          if (opts[variant.name]) {
+            validValues.add(opts[variant.name])
+          }
+        })
+
+        return {
+          ...variant,
+          options: variant.options.filter(opt => validValues.has(opt.value))
+        }
+      }).filter(variant => variant.options.length > 0)
+    },
     chatProductContext() {
       if (!this.product) return null
       return {
@@ -461,6 +521,18 @@ export default {
   },
   methods: {
     ...mapActions(['addToCart']),
+    prevImage() {
+      const newIndex = this.currentImageIndex > 0 
+        ? this.currentImageIndex - 1 
+        : this.productImages.length - 1
+      this.selectedImage = this.productImages[newIndex]
+    },
+    nextImage() {
+      const newIndex = this.currentImageIndex < this.productImages.length - 1 
+        ? this.currentImageIndex + 1 
+        : 0
+      this.selectedImage = this.productImages[newIndex]
+    },
     chatWithSeller() {
       window.dispatchEvent(new CustomEvent('open-seller-chat', {
         detail: {
@@ -495,6 +567,46 @@ export default {
         if (optImage) {
           this.selectedImage = optImage
         }
+        // Clear any selections that are no longer valid after this change
+        this.$nextTick(() => {
+          this.clearInvalidSelections()
+        })
+      }
+    },
+    clearInvalidSelections() {
+      if (!this.hasCombinations) return
+      
+      let changed = false
+      const updated = { ...this.selectedVariants }
+      
+      // For each selected variant, check if it's still valid
+      for (const [variantName, selectedValue] of Object.entries(updated)) {
+        if (!selectedValue) continue
+        
+        // Find valid values for this variant given other selections
+        const validValues = new Set()
+        this.product.productCombinations.forEach(combo => {
+          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+          // Check if this combination matches all OTHER selected options
+          const matchesOthers = Object.entries(updated).every(([key, value]) => {
+            if (key === variantName) return true
+            if (!value) return true
+            return opts[key] === value
+          })
+          if (matchesOthers && opts[variantName]) {
+            validValues.add(opts[variantName])
+          }
+        })
+        
+        // If current selection is not in valid values, clear it
+        if (!validValues.has(selectedValue)) {
+          delete updated[variantName]
+          changed = true
+        }
+      }
+      
+      if (changed) {
+        this.selectedVariants = updated
       }
     },
     initVariantSelection() {
@@ -658,6 +770,7 @@ export default {
 }
 
 .main-image {
+  position: relative;
   border-radius: var(--radius-2xl);
   overflow: hidden;
   background: var(--surface);
@@ -667,12 +780,60 @@ export default {
 .main-image img {
   width: 100%;
   height: 500px;
-  object-fit: cover;
+  object-fit: contain;
+  background: #ffffff;
   transition: var(--transition-smooth);
 }
 
 .main-image:hover img {
   transform: scale(1.02);
+}
+
+.image-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  font-size: 1.25rem;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.image-nav-btn:hover {
+  background: #fff;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.image-nav-btn.prev-btn {
+  left: 12px;
+}
+
+.image-nav-btn.next-btn {
+  right: 12px;
+}
+
+.image-counter {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .rounded-custom {

@@ -10,145 +10,31 @@ services:
     networks:
       - ecommerce-network
 
-  # Product Service
-  product-service:
-    build: ./services/product-service
-    ports:
-      - "3001:3001"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/productdb
-      - JWT_SECRET=supersecretjwtkey
-      - JWT_EXPIRE=7d
-      - ORDER_SERVICE_URL=http://order-service:3003
-      - COIN_SERVICE_URL=http://shophubcoin-service:3008
-    depends_on:
-      - mongo
-    volumes:
-      - product-uploads:/app/uploads
-    networks:
-      - ecommerce-network
-
-  # User Service
-  user-service:
-    build: ./services/user-service
-    ports:
-      - "3002:3002"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/userdb
-      - JWT_SECRET=supersecretjwtkey
-      - JWT_EXPIRE=7d
-      - ORDER_SERVICE_URL=http://order-service:3003
-    depends_on:
-      - mongo
-    networks:
-      - ecommerce-network
-
-  # Order Service
-  order-service:
-    build: ./services/order-service
-    ports:
-      - "3003:3003"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/orderdb
-      - JWT_SECRET=supersecretjwtkey
-      - USER_SERVICE_URL=http://user-service:3002
-      - PRODUCT_SERVICE_URL=http://product-service:3001
-      - COIN_SERVICE_URL=http://shophubcoin-service:3008
-      - VOUCHER_SERVICE_URL=http://voucher-service:3007
-      - PAYMENT_SERVICE_URL=http://payment-service:3005
-    depends_on:
-      - mongo
-    networks:
-      - ecommerce-network
-
-  # Cart Service
-  cart-service:
-    build: ./services/cart-service
-    ports:
-      - "3004:3004"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/cartdb
-      - JWT_SECRET=supersecretjwtkey
-    depends_on:
-      - mongo
-    networks:
-      - ecommerce-network
-
-  # Payment Service
-  payment-service:
-    build: ./services/payment-service
-    ports:
-      - "3005:3005"
-    env_file:
-      - ./services/payment-service/.env
-    networks:
-      - ecommerce-network
-
-  # Voucher Service
-  voucher-service:
-    build: ./services/voucher-service
-    ports:
-      - "3007:3007"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/voucherdb
-      - JWT_SECRET=supersecretjwtkey
-      - USER_SERVICE_URL=http://user-service:3002
-    depends_on:
-      - mongo
-    networks:
-      - ecommerce-network
-
-  # My Purchase Service
-  my-purchase-service:
-    build: ./services/my-purchase-service
-    ports:
-      - "3006:3006"
-    networks:
-      - ecommerce-network
-
-  # ShopHubCoin Service
-  shophubcoin-service:
-    build: ./services/shophubcoin-service
-    ports:
-      - "3008:3008"
-    networks:
-      - ecommerce-network
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/coindb
-      - JWT_SECRET=supersecretjwtkey
-
-  # Chat Service
-  chat-service:
-    build: ./services/chat-service
-    ports:
-      - "3009:3009"
-    environment:
-      - MONGODB_URI=mongodb://mongo:27017/chatdb
-      - JWT_SECRET=supersecretjwtkey
-    depends_on:
-      - mongo
-    volumes:
-      - chat-uploads:/app/public/uploads
-    networks:
-      - ecommerce-network
-
-  # API Gateway
-  api-gateway:
-    build: ./services/api-gateway
+  # Consolidated Backend
+  backend:
+    build: ./backend
     ports:
       - "3000:3000"
+    environment:
+      - PORT=3000
+      - MONGODB_USER_URI=mongodb://mongo:27017/userdb
+      - MONGODB_PRODUCT_URI=mongodb://mongo:27017/productdb
+      - MONGODB_ORDER_URI=mongodb://mongo:27017/orderdb
+      - MONGODB_CART_URI=mongodb://mongo:27017/cartdb
+      - MONGODB_CHAT_URI=mongodb://mongo:27017/chatdb
+      - MONGODB_VOUCHER_URI=mongodb://mongo:27017/voucherdb
+      - MONGODB_COIN_URI=mongodb://mongo:27017/coindb
+      - JWT_SECRET=supersecretjwtkey
+      - JWT_EXPIRE=7d
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_your_stripe_key}
     depends_on:
-      - product-service
-      - user-service
-      - order-service
-      - cart-service
-      - payment-service
-      - voucher-service
-      - my-purchase-service
-      - shophubcoin-service
-      - chat-service
+      - mongo
+    volumes:
+      - ./backend/src:/app/src
+      - backend-uploads:/app/uploads
     networks:
       - ecommerce-network
+    command: npm run dev
 
   # Frontend (Development)
   frontend:
@@ -158,7 +44,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - api-gateway
+      - backend
     networks:
       - ecommerce-network
     volumes:
@@ -167,9 +53,7 @@ services:
 
 volumes:
   mongo_data:
-  product-uploads:
-  chat-uploads:
-
+  backend-uploads:
 
 networks:
   ecommerce-network:

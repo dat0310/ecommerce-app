@@ -283,8 +283,7 @@
                       <div class="card">
                         <img 
                           :src="(product.images && product.images[0]) || product.image || 'https://via.placeholder.com/200'" 
-                          class="card-img-top" 
-                          style="height: 200px; object-fit: cover;"
+                          class="card-img-top product-card-img"
                           :alt="product.name"
                         >
                         <div class="card-body">
@@ -428,98 +427,174 @@
 
             <!-- Vouchers Management -->
             <div v-if="activeTab === 'vouchers'" class="vouchers-management">
-              <h2 class="mb-4">Vouchers Management</h2>
-
-              <div class="card mb-4">
-                <div class="card-header">
-                  <h5 class="mb-0">Create New Voucher</h5>
+              <!-- Header -->
+              <div class="voucher-header">
+                <div class="header-content">
+                  <h2 class="header-title">
+                    <i class="bi bi-ticket-perforated-fill"></i>
+                    Vouchers Management
+                  </h2>
+                  <p class="header-subtitle">Create and manage discount vouchers for your customers</p>
                 </div>
-                <div class="card-body">
-                  <form @submit.prevent="createVoucher">
-                    <div class="row">
-                      <div class="col-md-4">
-                        <div class="mb-3">
-                          <label for="voucherCode" class="form-label">Voucher Code</label>
-                          <input type="text" class="form-control" id="voucherCode" v-model="newVoucher.code" required>
-                        </div>
-                      </div>
-                      <div class="col-md-3">
-                        <div class="mb-3">
-                          <label for="discountType" class="form-label">Discount Type</label>
-                          <select class="form-select" id="discountType" v-model="newVoucher.discountType">
-                            <option value="percentage">Percentage</option>
-                            <option value="fixed">Fixed</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div class="col-md-3">
-                        <div class="mb-3">
-                          <label for="discountValue" class="form-label">Discount Value</label>
-                          <input type="number" class="form-control" id="discountValue" v-model="newVoucher.discountValue" required>
-                        </div>
-                      </div>
-                      <div class="col-md-2">
-                        <div class="mb-3">
-                          <label for="fee" class="form-label">Coin Fee</label>
-                          <input type="number" class="form-control" id="fee" title="Set to 0 for free voucher" v-model="newVoucher.fee" min="0" required>
-                        </div>
-                      </div>
-                      <div class="col-md-2">
-                        <div class="mb-3">
-                          <label for="expiryDate" class="form-label">Expiry Date</label>
-                          <input type="date" class="form-control" id="expiryDate" v-model="newVoucher.expiryDate" required>
-                        </div>
-                      </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Create Voucher</button>
-                  </form>
+                <div class="header-stats">
+                  <div class="stat-item">
+                    <span class="stat-value">{{ vouchers.length }}</span>
+                    <span class="stat-label">Total Vouchers</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-value text-success">{{ vouchers.filter(v => v.isActive).length }}</span>
+                    <span class="stat-label">Active</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="card">
-                <div class="card-header">
-                  <h5 class="mb-0">Existing Vouchers</h5>
-                </div>
-                <div class="card-body">
-                  <div v-if="vouchers.length === 0" class="text-center py-4">
-                    <p class="text-muted">No vouchers found</p>
+              <!-- Create New Voucher Card -->
+              <div class="voucher-create-card">
+                <form @submit.prevent="createVoucher" class="voucher-form">
+                  <div class="form-grid">
+                    <div class="form-group">
+                      <label class="form-label-modern">
+                        <i class="bi bi-upc-scan me-2"></i>Voucher Code
+                      </label>
+                      <input 
+                        type="text" 
+                        class="form-control-modern" 
+                        v-model="newVoucher.code" 
+                        placeholder="e.g. SUMMER2024"
+                        required
+                      >
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label-modern">
+                        <i class="bi bi-tag me-2"></i>Discount Type
+                      </label>
+                      <select class="form-control-modern" v-model="newVoucher.discountType">
+                        <option value="percentage">Percentage</option>
+                        <option value="fixed">Fixed Amount</option>
+                      </select>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label-modern">
+                        <i class="bi bi-cash-stack me-2"></i>Discount Value
+                      </label>
+                      <div class="value-input-wrapper">
+                        <span class="value-prefix">{{ newVoucher.discountType === 'percentage' ? '%' : '$' }}</span>
+                        <input 
+                          type="number" 
+                          class="form-control-modern value-input" 
+                          v-model="newVoucher.discountValue" 
+                          placeholder="0"
+                          min="0"
+                          required
+                        >
+                      </div>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label-modern">
+                        <i class="bi bi-coin me-2"></i>Coin Fee
+                      </label>
+                      <div class="value-input-wrapper">
+                        <span class="value-prefix"><i class="bi bi-coin"></i></span>
+                        <input 
+                          type="number" 
+                          class="form-control-modern value-input" 
+                          v-model="newVoucher.fee" 
+                          placeholder="0"
+                          min="0"
+                          title="Set to 0 for free voucher"
+                          required
+                        >
+                      </div>
+                      <small class="form-hint">Set to 0 for free voucher</small>
+                    </div>
+                    
+                    <div class="form-group">
+                      <label class="form-label-modern">
+                        <i class="bi bi-calendar-event me-2"></i>Expiry Date
+                      </label>
+                      <input 
+                        type="date" 
+                        class="form-control-modern" 
+                        v-model="newVoucher.expiryDate" 
+                        required
+                      >
+                    </div>
                   </div>
-                  <div v-else class="table-responsive">
-                    <table class="table table-hover">
-                      <thead>
-                        <tr>
-                          <th>Code</th>
-                          <th>Type</th>
-                          <th>Value</th>
-                          <th>Fee (Coins)</th>
-                          <th>Expiry Date</th>
-                          <th>Status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr v-for="voucher in vouchers" :key="voucher._id">
-                          <td>{{ voucher.code }}</td>
-                          <td>{{ voucher.discountType }}</td>
-                          <td>{{ voucher.discountValue }}</td>
-                          <td>{{ voucher.fee || 0 }}</td>
-                          <td>{{ formatDate(voucher.expiryDate) }}</td>
-                          <td>
-                            <span class="badge" :class="voucher.isActive ? 'bg-success' : 'bg-danger'">
-                              {{ voucher.isActive ? 'Active' : 'Inactive' }}
-                            </span>
-                          </td>
-                          <td>
-                            <button 
-                              class="btn btn-sm btn-outline-danger"
-                              @click="deleteVoucher(voucher._id)"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  
+                  <div class="form-actions">
+                    <button type="submit" class="btn-create-voucher">
+                      <i class="bi bi-plus-lg me-2"></i>
+                      Create Voucher
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Existing Vouchers -->
+              <div class="vouchers-list-section">
+                <div class="section-header">
+                  <h5 class="section-title">
+                    <i class="bi bi-collection me-2"></i>
+                    Existing Vouchers
+                  </h5>
+                  <div class="section-actions">
+                    <div class="search-box">
+                      <i class="bi bi-search"></i>
+                      <input type="text" placeholder="Search vouchers..." v-model="voucherSearch">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Empty State -->
+                <div v-if="filteredVouchers.length === 0" class="empty-vouchers">
+                  <div class="empty-icon">
+                    <i class="bi bi-ticket-perforated"></i>
+                  </div>
+                  <h4>No vouchers found</h4>
+                  <p>Create your first voucher to get started</p>
+                </div>
+
+                <!-- Vouchers Grid -->
+                <div v-else class="vouchers-grid">
+                  <div 
+                    v-for="voucher in filteredVouchers" 
+                    :key="voucher._id" 
+                    class="voucher-card"
+                    :class="{ 'expired': !voucher.isActive }"
+                  >
+                    <div class="voucher-card-left">
+                      <div class="voucher-discount">
+                        <span class="discount-value">{{ voucher.discountValue }}</span>
+                        <span class="discount-type">{{ voucher.discountType === 'percentage' ? '%' : '$' }}</span>
+                      </div>
+                      <span class="discount-label">{{ voucher.discountType === 'percentage' ? 'OFF' : 'OFF' }}</span>
+                    </div>
+                    <div class="voucher-card-right">
+                      <div class="voucher-code">{{ voucher.code }}</div>
+                      <div class="voucher-details">
+                        <span class="detail-item">
+                          <i class="bi bi-coin"></i>
+                          {{ voucher.fee || 0 }} coins
+                        </span>
+                        <span class="detail-item">
+                          <i class="bi bi-calendar"></i>
+                          {{ formatDate(voucher.expiryDate) }}
+                        </span>
+                      </div>
+                      <div class="voucher-footer">
+                        <span class="status-badge" :class="voucher.isActive ? 'active' : 'inactive'">
+                          <i :class="voucher.isActive ? 'bi bi-check-circle-fill' : 'bi bi-x-circle-fill'"></i>
+                          {{ voucher.isActive ? 'Active' : 'Expired' }}
+                        </span>
+                        <button class="btn-delete-voucher" @click="deleteVoucher(voucher._id)">
+                          <i class="bi bi-trash3"></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="voucher-perforation"></div>
                   </div>
                 </div>
               </div>
@@ -750,6 +825,7 @@ export default {
       sellers: [],
       allProducts: [],
       vouchers: [],
+      voucherSearch: '',
       newVoucher: {
         code: '',
         discountType: 'percentage',
@@ -782,6 +858,13 @@ export default {
       return this.orders.filter(order => 
         (order.status === 'refund_approved' || order.status === 'dispute_resolved') 
         && order.refundInfo?.adminResolution
+      )
+    },
+    filteredVouchers() {
+      if (!this.voucherSearch) return this.vouchers
+      const search = this.voucherSearch.toLowerCase()
+      return this.vouchers.filter(v => 
+        v.code.toLowerCase().includes(search)
       )
     }
   },
@@ -926,6 +1009,14 @@ export default {
     formatDate(date) {
       return new Date(date).toLocaleDateString()
     },
+    generateVoucherCode() {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+      let code = ''
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length))
+      }
+      this.newVoucher.code = code
+    },
     async createVoucher() {
       try {
         await axios.post('/api/vouchers', this.newVoucher)
@@ -1067,6 +1158,15 @@ export default {
   border-radius: 12px;
 }
 
+.product-card-img {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 12px 12px 0 0;
+}
+
 .table th {
   border-top: none;
   font-weight: 600;
@@ -1138,5 +1238,547 @@ export default {
   gap: 0.75rem;
   padding: 1rem 1.5rem;
   border-top: 1px solid #e9ecef;
+}
+
+/* ===== Voucher Management Styles ===== */
+.vouchers-management {
+  padding: 0;
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  color: white;
+}
+
+.header-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-title i {
+  font-size: 1.5rem;
+}
+
+.header-subtitle {
+  opacity: 0.85;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.header-stats {
+  display: flex;
+  gap: 2rem;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+/* Create Voucher Card */
+.voucher-create-card {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+}
+
+.create-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.create-icon {
+  width: 50px;
+  height: 50px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+}
+
+.create-title {
+  margin: 0;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.create-subtitle {
+  margin: 0.25rem 0 0;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.voucher-form .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-label-modern {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+.form-label-modern i {
+  color: #667eea;
+}
+
+.form-control-modern {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  background: #f8f9fa;
+}
+
+.form-control-modern:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-with-icon .form-control-modern {
+  flex: 1;
+}
+
+.generate-btn {
+  width: 44px;
+  height: 44px;
+  border: 2px solid #667eea;
+  background: white;
+  border-radius: 10px;
+  color: #667eea;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.generate-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
+.type-selector {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.type-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #f8f9fa;
+  font-weight: 500;
+  color: #6c757d;
+}
+
+.type-option input {
+  display: none;
+}
+
+.type-option.active {
+  border-color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+}
+
+.type-option:hover:not(.active) {
+  border-color: #adb5bd;
+}
+
+.value-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.value-prefix {
+  position: absolute;
+  left: 1rem;
+  color: #667eea;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.value-input {
+  padding-left: 2.5rem !important;
+}
+
+.form-hint {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.btn-create-voucher {
+  padding: 0.875rem 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+}
+
+.btn-create-voucher:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Vouchers List Section */
+.vouchers-list-section {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.section-title {
+  margin: 0;
+  font-weight: 700;
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+}
+
+.section-title i {
+  color: #667eea;
+}
+
+.search-box {
+  position: relative;
+  width: 250px;
+}
+
+.search-box i {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9ca3af;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 0.625rem 1rem 0.625rem 2.5rem;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+}
+
+/* Empty State */
+.empty-vouchers {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 1.5rem;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-icon i {
+  font-size: 2.5rem;
+  color: #9ca3af;
+}
+
+.empty-vouchers h4 {
+  margin: 0 0 0.5rem;
+  color: #374151;
+}
+
+.empty-vouchers p {
+  margin: 0;
+  color: #9ca3af;
+}
+
+/* Vouchers Grid */
+.vouchers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.25rem;
+}
+
+.voucher-card {
+  display: flex;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.voucher-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}
+
+.voucher-card.expired {
+  opacity: 0.65;
+}
+
+.voucher-card-left {
+  width: 100px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: 1rem;
+  position: relative;
+}
+
+.voucher-card.expired .voucher-card-left {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+}
+
+.voucher-discount {
+  display: flex;
+  align-items: flex-start;
+}
+
+.discount-value {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.discount-type {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+.discount-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-top: 0.25rem;
+  opacity: 0.9;
+}
+
+.voucher-card-right {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.voucher-code {
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+}
+
+.voucher-details {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.detail-item i {
+  color: #9ca3af;
+}
+
+.voucher-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.status-badge.inactive {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-delete-voucher {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #fee2e2;
+  border-radius: 8px;
+  color: #dc2626;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-delete-voucher:hover {
+  background: #dc2626;
+  color: white;
+}
+
+.voucher-perforation {
+  position: absolute;
+  left: 100px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 6px,
+    #e9ecef 6px,
+    #e9ecef 12px
+  );
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .voucher-header {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .header-stats {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .voucher-form .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .vouchers-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .search-box {
+    width: 100%;
+  }
 }
 </style>

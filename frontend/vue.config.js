@@ -7,9 +7,16 @@ module.exports = defineConfig({
     config.plugins.delete('eslint')
   },
   devServer: {
+    host: '0.0.0.0',
+    port: 8080,
+    allowedHosts: 'all',
     proxy: {
+      '/api': {
+        target: 'http://backend:3000',
+        changeOrigin: true
+      },
       '/uploads': {
-        target: 'http://product-service:3001',
+        target: 'http://backend:3000',
         changeOrigin: true
       }
     }

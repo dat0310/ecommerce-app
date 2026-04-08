@@ -1,12 +1,13 @@
-FROM node:18-alpine
+FROM node:16-alpine
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies from the lockfile so the container gets a stable,
+# compatible dependency tree.
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -14,5 +15,5 @@ COPY . .
 # Expose port 8080
 EXPOSE 8080
 
-# Start development server
-CMD ["npm", "run", "serve", "--", "--host", "0.0.0.0", "--port", "8080"]
+# Refresh dependencies on startup to repair any stale mounted node_modules volume.
+CMD ["sh", "-c", "npm ci && npm run serve"]

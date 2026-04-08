@@ -1,0 +1,33 @@
+const mongoose = require('mongoose');
+const { getConnection } = require('../../config/database');
+
+const cartItemSchema = new mongoose.Schema({
+    productId: { type: String, required: true },
+    name: { type: String, required: true },
+    price: { type: Number, required: true },
+    image: { type: String, default: '' },
+    category: { type: String, default: '' },
+    stock: { type: Number, default: 99 },
+    quantity: { type: Number, default: 1, min: 1 },
+    sellerId: { type: String, required: true },
+    sellerName: { type: String, required: true },
+    selectedOptions: { type: Map, of: String, default: {} }
+}, { _id: false });
+
+const cartSchema = new mongoose.Schema({
+    userId: { type: String, required: true, unique: true },
+    items: [cartItemSchema],
+    updatedAt: { type: Date, default: Date.now }
+});
+
+let Cart;
+
+const getCartModel = () => {
+    if (!Cart) {
+        const conn = getConnection('cart');
+        Cart = conn.model('Cart', cartSchema);
+    }
+    return Cart;
+};
+
+module.exports = { getCartModel, cartSchema };

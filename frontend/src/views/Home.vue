@@ -1,17 +1,5 @@
 <template>
   <div class="home">
-    <!-- Hero Banner -->
-    <section class="home-hero">
-      <div class="container">
-        <div class="hero-content">
-          <span class="hero-badge">Premium Shopping Experience</span>
-          <h1 class="hero-title">Discover Quality Products</h1>
-          <p class="hero-subtitle">Explore our curated collection of premium products with exceptional quality and unbeatable prices.</p>
-        </div>
-      </div>
-      <div class="hero-decoration"></div>
-    </section>
-
     <!-- Category Grid -->
     <section class="categories-section">
       <div class="container">
@@ -27,9 +15,7 @@
             class="category-card"
             :class="{ 'active': selectedCategory === category.name }"
           >
-            <div class="category-icon">
-              <i :class="['bi', category.icon]"></i>
-            </div>
+            <div class="category-icon" v-html="category.svg"></div>
             <span class="category-name">{{ category.name }}</span>
           </button>
         </div>
@@ -241,14 +227,93 @@ export default {
       itemsPerPage: 12,
       wishlistIds: [],
       categories: [
-        { name: 'Laptop', icon: 'bi-laptop' },
-        { name: 'Mobile', icon: 'bi-phone' },
-        { name: 'Headphone', icon: 'bi-headphones' },
-        { name: 'Speaker', icon: 'bi-speaker' },
-        { name: 'Watch', icon: 'bi-watch' },
-        { name: 'Camera', icon: 'bi-camera' },
-        { name: 'Appliances', icon: 'bi-house' },
-        { name: 'Computing & Displays', icon: 'bi-display' }
+        { 
+          name: 'Laptop', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="12" width="48" height="32" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <rect x="12" y="16" width="40" height="24" rx="1" fill="currentColor" opacity="0.15"/>
+            <path d="M4 48h56c0 2.2-1.8 4-4 4H8c-2.2 0-4-1.8-4-4z" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <circle cx="32" cy="28" r="6" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.3"/>
+            <path d="M29 28l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`
+        },
+        { 
+          name: 'Mobile', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="16" y="6" width="32" height="52" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <rect x="20" y="12" width="24" height="36" rx="1" fill="currentColor" opacity="0.15"/>
+            <circle cx="32" cy="54" r="3" fill="currentColor"/>
+            <rect x="26" y="8" width="12" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+            <path d="M24 20h16M24 26h12M24 32h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+          </svg>`
+        },
+        { 
+          name: 'Headphone', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 36V32c0-11 9-20 20-20s20 9 20 20v4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <rect x="8" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+            <rect x="46" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+            <ellipse cx="13" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
+            <ellipse cx="51" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
+            <path d="M28 58h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>`
+        },
+        { 
+          name: 'Speaker', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="14" y="6" width="36" height="52" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <circle cx="32" cy="38" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+            <circle cx="32" cy="38" r="6" fill="currentColor" opacity="0.4"/>
+            <circle cx="32" cy="38" r="2" fill="currentColor"/>
+            <circle cx="32" cy="16" r="5" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+            <circle cx="32" cy="16" r="2" fill="currentColor" opacity="0.5"/>
+          </svg>`
+        },
+        { 
+          name: 'Watch', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="20" y="4" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
+            <rect x="20" y="48" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
+            <rect x="16" y="14" width="32" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <circle cx="32" cy="32" r="12" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.15"/>
+            <path d="M32 24v8l6 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="32" cy="32" r="2" fill="currentColor"/>
+          </svg>`
+        },
+        { 
+          name: 'Camera', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22 16l3-6h14l3 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <rect x="6" y="16" width="52" height="38" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <circle cx="32" cy="34" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+            <circle cx="32" cy="34" r="7" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+            <circle cx="32" cy="34" r="3" fill="currentColor" opacity="0.5"/>
+            <circle cx="50" cy="24" r="3" fill="currentColor" opacity="0.4"/>
+            <rect x="10" y="22" width="8" height="4" rx="1" fill="currentColor" opacity="0.3"/>
+          </svg>`
+        },
+        { 
+          name: 'Appliances', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="12" y="8" width="40" height="48" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <rect x="16" y="12" width="32" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="12" y1="40" x2="52" y2="40" stroke="currentColor" stroke-width="2"/>
+            <circle cx="22" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="32" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+            <circle cx="42" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+            <path d="M26 22l4 6h-8l4-6zM32 26v4M38 24v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+          </svg>`
+        },
+        { 
+          name: 'Computing & Displays', 
+          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="8" width="52" height="36" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+            <rect x="10" y="12" width="44" height="28" rx="1" fill="currentColor" opacity="0.15"/>
+            <path d="M26 44v8M38 44v8M20 52h24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="32" cy="26" r="8" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+            <path d="M28 26l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>`
+        }
       ]
     }
   },
@@ -543,15 +608,27 @@ export default {
 }
 
 .category-icon {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--gradient-primary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   color: var(--white);
-  font-size: 1.25rem;
+  padding: 12px;
+  transition: all var(--transition-smooth);
+}
+
+.category-icon svg {
+  width: 100%;
+  height: 100%;
+  color: inherit;
+}
+
+.category-card:hover .category-icon {
+  transform: scale(1.1);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
 }
 
 .category-name {

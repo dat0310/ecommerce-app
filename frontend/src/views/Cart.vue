@@ -57,98 +57,83 @@
               </div>
               <div class="card-body p-0">
                 <div v-for="(item, index) in cartItems" :key="item._id" class="cart-item">
-                  <div class="row g-0 align-items-center">
-                    <div class="col-md-1">
-                      <div class="cart-item-checkbox p-3">
-                        <input class="form-check-input" type="checkbox" :value="item._id" v-model="selectedIds" :id="`select-${item._id}`" />
-                      </div>
+                  <div class="cart-item-layout">
+                    <!-- Checkbox -->
+                    <div class="cart-item-checkbox">
+                      <input class="form-check-input" type="checkbox" :value="item._id" v-model="selectedIds" :id="`select-${item._id}`" />
                     </div>
-                    <div class="col-md-2">
-                      <div class="cart-item-image">
-                        <img
-                          :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'"
-                          :alt="item.name"
-                          class="img-fluid rounded"
+                    
+                    <!-- Product Image -->
+                    <div class="cart-item-image">
+                      <img
+                        :src="item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80'"
+                        :alt="item.name"
+                      >
+                    </div>
+                    
+                    <!-- Product Details -->
+                    <div class="cart-item-details">
+                      <h6 class="fw-bold mb-1">{{ item.name }}</h6>
+                      <p class="text-muted mb-1 small">{{ item.category || 'General' }}</p>
+                      <!-- Selected Options -->
+                      <div v-if="item.selectedOptions && Object.keys(item.selectedOptions).length > 0" class="cart-item-options">
+                        <span 
+                          v-for="(value, key) in item.selectedOptions" 
+                          :key="key" 
+                          class="badge bg-light text-dark border"
                         >
+                          {{ key }}: {{ value }}
+                        </span>
                       </div>
+                      <p class="text-primary fw-bold mb-0 mt-2">${{ item.price }}</p>
                     </div>
                     
-                    <div class="col-md-3">
-                      <div class="cart-item-details p-3">
-                        <h6 class="fw-bold mb-1">{{ item.name }}</h6>
-                        <p class="text-muted mb-1 small">{{ item.category || 'General' }}</p>
-                        <!-- Selected Options -->
-                        <div v-if="item.selectedOptions && Object.keys(item.selectedOptions).length > 0" class="mb-2">
-                          <span 
-                            v-for="(value, key) in item.selectedOptions" 
-                            :key="key" 
-                            class="badge bg-light text-dark border me-1 mb-1"
-                            style="font-size: 0.75rem;"
-                          >
-                            {{ key }}: {{ value }}
-                          </span>
-                        </div>
-                        <div v-else class="text-warning mb-2">
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <i class="bi bi-star-fill"></i>
-                          <small class="text-muted ms-1">(4.8)</small>
-                        </div>
-                        <p class="text-primary fw-bold mb-0">${{ item.price }}</p>
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-3">
-                      <div class="cart-item-quantity p-3">
-                        <label class="form-label small fw-semibold">Quantity</label>
-                        <div class="quantity-controls d-flex align-items-center">
-                          <button 
-                            @click="updateQuantity(item._id, item.quantity - 1)"
-                            class="btn btn-outline-secondary btn-sm"
-                            :disabled="item.quantity <= 1"
-                          >
-                            <i class="bi bi-dash"></i>
-                          </button>
-                          <input 
-                            type="number" 
-                            :value="item.quantity" 
-                            @change="updateQuantity(item._id, parseInt($event.target.value) || 1)"
-                            min="1" 
-                            :max="item.stock || 99" 
-                            class="form-control text-center mx-2" 
-                            style="width: 70px;"
-                          >
-                          <button 
-                            @click="updateQuantity(item._id, item.quantity + 1)"
-                            class="btn btn-outline-secondary btn-sm"
-                            :disabled="item.quantity >= (item.stock || 99)"
-                          >
-                            <i class="bi bi-plus"></i>
-                          </button>
-                        </div>
-                        <small class="text-muted mt-1 d-block">Available: {{ item.stock || 99 }}</small>
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                      <div class="cart-item-price p-3 text-end">
-                        <h5 class="fw-bold text-primary mb-1">${{ (item.price * item.quantity).toFixed(2) }}</h5>
-                        <small class="text-muted">Total</small>
-                      </div>
-                    </div>
-                    
-                    <div class="col-md-1">
-                      <div class="cart-item-actions p-3 text-end">
-                        <button
-                          @click="removeItem(item._id)"
-                          class="btn btn-danger btn-sm"
-                          title="Remove item"
+                    <!-- Quantity Controls -->
+                    <div class="cart-item-quantity">
+                      <label class="form-label small fw-semibold">Quantity</label>
+                      <div class="quantity-controls d-flex align-items-center">
+                        <button 
+                          @click="updateQuantity(item._id, item.quantity - 1)"
+                          class="btn btn-outline-secondary btn-sm"
+                          :disabled="item.quantity <= 1"
                         >
-                          <i class="bi bi-trash"></i>
+                          <i class="bi bi-dash"></i>
+                        </button>
+                        <input 
+                          type="number" 
+                          :value="item.quantity" 
+                          @change="updateQuantity(item._id, parseInt($event.target.value) || 1)"
+                          min="1" 
+                          :max="item.stock || 99" 
+                          class="form-control text-center mx-2" 
+                          style="width: 60px;"
+                        >
+                        <button 
+                          @click="updateQuantity(item._id, item.quantity + 1)"
+                          class="btn btn-outline-secondary btn-sm"
+                          :disabled="item.quantity >= (item.stock || 99)"
+                        >
+                          <i class="bi bi-plus"></i>
                         </button>
                       </div>
+                      <small class="text-muted mt-1 d-block">Available: {{ item.stock || 99 }}</small>
+                    </div>
+                    
+                    <!-- Price -->
+                    <div class="cart-item-price">
+                      <h5 class="fw-bold text-primary mb-1">${{ (item.price * item.quantity).toFixed(2) }}</h5>
+                      <small class="text-muted">Total</small>
+                    </div>
+                    
+                    <!-- Delete Button -->
+                    <div class="cart-item-actions">
+                      <button
+                        @click="removeItem(item._id)"
+                        class="btn btn-danger btn-sm"
+                        title="Remove item"
+                      >
+                        <i class="bi bi-trash"></i>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -432,20 +417,43 @@ export default {
   border-color: var(--primary);
 }
 
-.cart-item-image {
+/* Grid layout for cart items - ensures column alignment */
+.cart-item-layout {
+  display: grid !important;
+  grid-template-columns: 40px 100px minmax(150px, 300px) 180px 100px 50px !important;
+  align-items: center;
+  gap: 1rem;
   padding: 1rem;
 }
 
+.cart-item-layout .cart-item-checkbox {
+  padding: 0;
+  justify-self: center;
+}
+
+.cart-item-image {
+  width: 100px;
+  justify-self: center;
+}
+
 .cart-item-image img {
-  width: 100%;
-  height: 100px;
-  object-fit: cover;
+  width: 100px;
+  height: auto;
+  max-height: 120px;
+  object-fit: contain;
   border-radius: var(--radius-lg);
   transition: var(--transition-smooth);
+  background: #f8f9fa;
 }
 
 .cart-item:hover .cart-item-image img {
   transform: scale(1.05);
+}
+
+.cart-item-details {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .cart-item-details h6 {
@@ -453,17 +461,46 @@ export default {
   font-weight: 600;
   color: var(--text-primary);
   font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.cart-item-details .badge {
+.cart-item-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.cart-item-options .badge {
   font-size: 0.7rem;
   padding: 0.35rem 0.6rem;
   border-radius: var(--radius-sm);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cart-item-details .text-primary {
   color: var(--primary) !important;
   font-family: var(--font-heading);
+}
+
+.cart-item-quantity {
+  text-align: center;
+  justify-self: center;
+}
+
+.cart-item-price {
+  text-align: right;
+  justify-self: end;
+}
+
+.cart-item-actions {
+  text-align: center;
+  justify-self: center;
 }
 
 /* Quantity Controls */
@@ -676,39 +713,56 @@ export default {
     margin-top: 1.5rem;
   }
 
-  .cart-item .row {
-    flex-direction: column;
+  .cart-item-layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
   }
 
-  .cart-item .col-md-1,
-  .cart-item .col-md-2,
-  .cart-item .col-md-3 {
-    width: 100%;
-  }
-
-  .cart-item-checkbox {
-    padding: 1rem 1rem 0 !important;
-    justify-content: flex-start;
+  .cart-item-layout .cart-item-checkbox {
+    order: 1;
+    width: auto;
   }
 
   .cart-item-image {
-    text-align: center;
+    order: 2;
+    width: 80px;
   }
 
   .cart-item-image img {
-    width: 150px;
-    height: 150px;
+    width: 80px;
+    max-height: 100px;
   }
 
-  .cart-item-details,
-  .cart-item-quantity,
-  .cart-item-price,
+  .cart-item-details {
+    order: 3;
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .cart-item-quantity {
+    order: 4;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #eee;
+  }
+
+  .cart-item-quantity label {
+    margin-bottom: 0;
+  }
+
+  .cart-item-price {
+    order: 5;
+    text-align: left;
+  }
+
   .cart-item-actions {
-    text-align: center;
-  }
-
-  .quantity-controls {
-    justify-content: center;
+    order: 6;
+    margin-left: auto;
   }
 
   .order-summary-card {

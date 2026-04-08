@@ -429,6 +429,7 @@ export default {
             selectedOptions: item.selectedOptions || {}
           })),
           totalAmount: this.totalAmount || 0,
+          shippingFee: this.shippingCost || 0,
           shippingAddress: this.shippingAddress,
           paymentMethod: this.paymentMethod,
           paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed',
@@ -501,6 +502,14 @@ export default {
       }
 
       const token = localStorage.getItem('token');
+      
+      // Check authentication before proceeding
+      if (!token) {
+        this.$toast.error('Please log in to complete your purchase.', { position: 'top-right' });
+        this.$router.push('/login');
+        return;
+      }
+      
       let coinsDeducted = false;
       const coinsToDeduct = this.useCoins ? this.coinsToUse : 0;
 
@@ -523,7 +532,7 @@ export default {
         // 2. Create a PaymentIntent on your server
         const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
           amount: this.totalAmount * 100 // Amount in cents
-        });
+        }, { headers: { Authorization: `Bearer ${token}` } });
 
         // 3. Confirm the card payment
         const { paymentIntent, error } = await this.stripe.confirmCardPayment(clientSecret, {
