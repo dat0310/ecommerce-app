@@ -1,10 +1,10 @@
 <template>
   <div class="register">
     <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-          <div class="card shadow">
-            <div class="card-body p-5">
+        <div class="row justify-content-center">
+          <div class="col-md-7 col-lg-5">
+            <div class="card shadow">
+              <div class="card-body p-4">
               <h2 class="card-title text-center mb-4">Create Account</h2>
               
               <form @submit.prevent="handleRegister">
@@ -212,7 +212,7 @@ export default {
   background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   display: flex;
   align-items: center;
-  padding: 3rem 0;
+  padding: 2.25rem 0;
   position: relative;
   overflow: hidden;
 }
@@ -257,7 +257,7 @@ export default {
 }
 
 .card-body {
-  padding: 2.5rem !important;
+  padding: 2rem !important;
 }
 
 .card-title {

@@ -24,9 +24,9 @@ services:
       - MONGODB_CHAT_URI=mongodb://mongo:27017/chatdb
       - MONGODB_VOUCHER_URI=mongodb://mongo:27017/voucherdb
       - MONGODB_COIN_URI=mongodb://mongo:27017/coindb
-      - JWT_SECRET=supersecretjwtkey
+      - JWT_SECRET=${JWT_SECRET:-changeme}
       - JWT_EXPIRE=7d
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-sk_test_your_stripe_key}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
     depends_on:
       - mongo
     volumes:

@@ -418,7 +418,7 @@ img {
   border: none;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  background: var(--bg-surface);
+  background: #FFFFFF;
   box-shadow: var(--shadow-sm);
   transition: all var(--transition-smooth);
 }

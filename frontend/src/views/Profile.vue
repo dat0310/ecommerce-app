@@ -592,7 +592,7 @@
             <textarea
               v-model="modalReview.comment"
               class="review-textarea"
-              rows="4"
+              rows="3"
               placeholder="What did you like or dislike? How was the quality?"
               maxlength="500"
             ></textarea>
@@ -1889,8 +1889,8 @@ export default {
   background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 24px;
   width: 90%;
-  max-width: 480px;
-  max-height: 90vh;
+  max-width: 560px;
+  max-height: calc(100vh - 2rem);
   overflow-y: auto;
   box-shadow: 
     0 25px 50px -12px rgba(0, 0, 0, 0.25),
@@ -1912,39 +1912,39 @@ export default {
 .review-modal-header {
   position: relative;
   text-align: center;
-  padding: 2rem 1.5rem 1.5rem;
+  padding: 1.5rem 1.25rem 1.1rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 24px 24px 0 0;
   color: white;
 }
 
 .review-header-icon {
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.75rem;
   backdrop-filter: blur(10px);
 }
 
 .review-header-icon i {
-  font-size: 1.75rem;
+  font-size: 1.5rem;
   color: #fbbf24;
 }
 
 .review-modal-header h4 {
   margin: 0 0 0.25rem;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
 .review-subtitle {
   margin: 0;
   opacity: 0.9;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .review-close-btn {
@@ -1973,8 +1973,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 1rem 1.5rem;
-  margin: -1.5rem 1.5rem 1rem;
+  padding: 0.875rem 1.1rem;
+  margin: -1rem 1.25rem 0.875rem;
   background: white;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -1983,15 +1983,15 @@ export default {
 }
 
 .review-product-img {
-  width: 70px;
-  height: 70px;
+  width: 62px;
+  height: 62px;
   border-radius: 12px;
   object-fit: cover;
   border: 2px solid #f1f5f9;
 }
 
 .review-product-info h6 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.35rem;
   font-weight: 600;
   color: #1e293b;
   font-size: 0.95rem;
@@ -2012,16 +2012,16 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 1.5rem 1.25rem;
-  padding: 0.875rem 1rem;
+  margin: 0 1.25rem 1rem;
+  padding: 0.75rem 0.9rem;
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border-radius: 12px;
   border: 1px solid #fbbf24;
 }
 
 .reward-icon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   border-radius: 50%;
   display: flex;
@@ -2031,7 +2031,7 @@ export default {
 }
 
 .reward-icon i {
-  font-size: 1.25rem;
+  font-size: 1rem;
   color: white;
 }
 
@@ -2044,17 +2044,17 @@ export default {
 .reward-title {
   font-weight: 700;
   color: #92400e;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .reward-desc {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: #a16207;
 }
 
 .reward-coins {
   font-weight: 800;
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   color: #b45309;
   background: white;
   padding: 0.25rem 0.75rem;
@@ -2065,8 +2065,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  margin: 0 1.5rem 1rem;
-  padding: 0.875rem 1rem;
+  margin: 0 1.25rem 0.875rem;
+  padding: 0.75rem 0.875rem;
   border-radius: 10px;
   font-size: 0.875rem;
 }
@@ -2084,15 +2084,15 @@ export default {
 }
 
 .review-section {
-  padding: 0 1.5rem;
-  margin-bottom: 1.25rem;
+  padding: 0 1.25rem;
+  margin-bottom: 0.9rem;
 }
 
 .review-label {
   display: block;
   font-weight: 600;
   color: #374151;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.6rem;
   font-size: 0.9rem;
 }
 
@@ -2113,8 +2113,8 @@ export default {
 }
 
 .star-icon svg {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
 }
 
 .star-icon:hover {
@@ -2149,7 +2149,7 @@ export default {
 
 .review-textarea {
   width: 100%;
-  padding: 1rem;
+  padding: 0.875rem;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   font-size: 0.95rem;
@@ -2180,13 +2180,13 @@ export default {
 .review-modal-footer {
   display: flex;
   gap: 0.75rem;
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: 1rem 1.25rem 1.1rem;
   border-top: 1px solid #e2e8f0;
 }
 
 .review-btn {
   flex: 1;
-  padding: 0.875rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   border-radius: 12px;
   font-weight: 600;
   font-size: 0.95rem;
@@ -2757,8 +2757,8 @@ export default {
 .refund-modal {
   background: #ffffff;
   border-radius: 24px;
-  width: 95%;
-  max-width: 500px;
+  width: 90%;
+  max-width: 520px;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
@@ -2781,20 +2781,20 @@ export default {
 .refund-modal-header {
   position: relative;
   text-align: center;
-  padding: 2rem 1.5rem 1.5rem;
+  padding: 1.5rem 1.25rem 1rem;
   background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
   color: white;
 }
 
 .refund-header-icon {
-  width: 60px;
-  height: 60px;
+  width: 48px;
+  height: 48px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.75rem;
   backdrop-filter: blur(10px);
 }
 
@@ -2803,15 +2803,15 @@ export default {
 }
 
 .refund-modal-header h4 {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.15rem;
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
 .refund-subtitle {
   margin: 0;
   opacity: 0.9;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .refund-close-btn {
@@ -2840,8 +2840,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1rem 1.5rem;
-  margin: -1rem 1rem 1rem;
+  padding: 0.75rem 1.25rem;
+  margin: -0.75rem 0.75rem 0.75rem;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -2869,8 +2869,8 @@ export default {
 }
 
 .refund-section {
-  padding: 0 1.5rem;
-  margin-bottom: 1.25rem;
+  padding: 0 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .refund-label {
@@ -2895,13 +2895,16 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
 }
 
 .reason-option {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.875rem 1rem;
+  padding: 0.75rem 0.85rem;
   background: #f8fafc;
   border: 2px solid #e2e8f0;
   border-radius: 12px;
@@ -2994,17 +2997,7 @@ export default {
 }
 
 .refund-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  margin: 0 1.5rem 1.25rem;
-  padding: 0.875rem 1rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border: 1px solid #93c5fd;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  color: #1e40af;
-  line-height: 1.5;
+  display: none;
 }
 
 .refund-notice i {
@@ -3016,7 +3009,7 @@ export default {
 .refund-modal-footer {
   display: flex;
   gap: 0.75rem;
-  padding: 1.25rem 1.5rem 1.5rem;
+  padding: 1rem 1.25rem 1.25rem;
   border-top: 1px solid #e2e8f0;
   background: #fff;
   flex-shrink: 0;

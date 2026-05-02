@@ -1,7 +1,7 @@
 <template>
   <div id="app">
     <!-- Premium Glass Navigation -->
-    <nav class="navbar navbar-expand-lg fixed-top">
+    <nav v-if="showHeader" class="navbar navbar-expand-lg fixed-top">
       <div class="container">
         <router-link to="/" class="navbar-brand">
           <i class="bi bi-bag-heart-fill"></i>
@@ -127,7 +127,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="main-content">
+    <main :class="['main-content', { 'main-content--no-header': !showHeader }]">
       <router-view/>
     </main>
 
@@ -135,7 +135,7 @@
     <ChatWidget v-if="isAuthenticated" ref="globalChat" />
 
     <!-- Premium Footer -->
-    <footer class="footer">
+    <footer :class="['footer', { 'footer--no-margin': !showHeader }]">
       <div class="container">
         <div class="row g-4">
           <!-- Brand Column -->
@@ -223,6 +223,9 @@ export default {
   },
   computed: {
     ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser', 'isAdmin', 'isSeller']),
+    showHeader() {
+      return !this.$route.meta?.hideHeader
+    },
     userDisplayName() {
       if (this.currentUser && this.currentUser.firstName && this.currentUser.lastName) {
         return `${this.currentUser.firstName} ${this.currentUser.lastName}`
@@ -328,6 +331,11 @@ export default {
 .main-content {
   padding-top: 76px;
   min-height: calc(100vh - 76px);
+}
+
+.main-content--no-header {
+  padding-top: 0;
+  min-height: 100vh;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -605,6 +613,10 @@ export default {
   color: var(--gray-300);
   padding: 64px 0 24px;
   margin-top: 80px;
+}
+
+.footer--no-margin {
+  margin-top: 0;
 }
 
 .footer-brand {

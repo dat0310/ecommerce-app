@@ -7,9 +7,6 @@
           <div class="sidebar bg-gradient-primary text-white">
             <div class="p-3 pt-2">
               <div class="text-center mb-3">
-                <div class="admin-avatar mb-2">
-                  <i class="bi bi-shield-check fs-1"></i>
-                </div>
                 <h5 class="mb-0 fw-bold">Admin Panel</h5>
                 <small class="text-light opacity-75">Management Dashboard</small>
               </div>
@@ -56,7 +53,7 @@
                   @click="activeTab = 'vouchers'"
                   href="#"
                 >
-                  <i class="bi bi-ticket-percent me-3"></i>
+                  <i class="bi bi-gift me-3"></i>
                   <span>Vouchers</span>
                 </a>
                 <a 
@@ -1098,9 +1095,9 @@ export default {
 <style scoped>
 .sidebar {
   position: fixed;
-  top: 76px;
+  top: 90px;
   left: 0;
-  height: calc(100vh - 76px);
+  height: calc(100vh - 90px);
   z-index: 100;
 }
 
@@ -1112,17 +1109,6 @@ export default {
 
 .bg-gradient-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.admin-avatar {
-  width: 60px;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
 }
 
 .admin-nav-link {

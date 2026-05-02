@@ -4,20 +4,17 @@
     <div class="login-hero">
       <div class="container">
         <div class="row justify-content-center">
-          <div class="col-md-8 col-lg-6">
+          <div class="col-md-7 col-lg-5">
             <div class="login-container" data-aos="fade-up">
               <!-- Header -->
-              <div class="text-center mb-5">
-                <div class="login-icon mb-3">
-                  <i class="bi bi-person-circle"></i>
-                </div>
+              <div class="text-center mb-4">
                 <h1 class="display-5 fw-bold gradient-text mb-2">Welcome Back</h1>
                 <p class="text-muted">Sign in to your account to continue shopping</p>
               </div>
 
               <!-- Login Form -->
               <div class="card glass-card">
-                <div class="card-body p-5">
+                <div class="card-body p-4">
                   <form @submit.prevent="handleLogin">
                     <div class="mb-4">
                       <label for="email" class="form-label fw-semibold">
@@ -218,25 +215,6 @@ export default {
 .login-container {
   position: relative;
   z-index: 2;
-}
-
-.login-icon {
-  width: 90px;
-  height: 90px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  backdrop-filter: blur(12px);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
-
-.login-icon i {
-  font-size: 2.5rem;
-  color: white;
 }
 
 .gradient-text {
@@ -449,15 +427,6 @@ export default {
 
   .glass-card .card-body {
     padding: 2rem !important;
-  }
-
-  .login-icon {
-    width: 70px;
-    height: 70px;
-  }
-
-  .login-icon i {
-    font-size: 2rem;
   }
 
   .display-5 {
