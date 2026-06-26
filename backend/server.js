@@ -36,11 +36,11 @@ const startServer = async () => {
             console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
-║   🚀 E-Commerce Backend Server Started                    ║
+║    E-Commerce Backend Server Started                      ║
 ║                                                           ║
-║   Server:     http://localhost:${PORT}                      ║
-║   API Docs:   http://localhost:${PORT}/api-docs             ║
-║   Health:     http://localhost:${PORT}/health               ║
+║   Server:     http://localhost:${PORT}                    ║
+║   API Docs:   http://localhost:${PORT}/api-docs           ║
+║   Health:     http://localhost:${PORT}/health             ║
 ║                                                           ║
 ║   API Endpoints:                                          ║
 ║   • /api/users      - User management                     ║

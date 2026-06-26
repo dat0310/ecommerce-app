@@ -104,7 +104,7 @@
                   </div>
                 </div>
 
-                <div v-for="item in selectedItems" :key="item._id" class="d-flex justify-content-between mb-2">
+                <div v-for="item in selectedItems" :key="item.cartItemKey || item._id" class="d-flex justify-content-between mb-2">
                   <span>{{ item.name }} (x{{ item.quantity }})</span>
                   <span>${{ (item.price * item.quantity).toFixed(2) }}</span>
                 </div>
@@ -191,7 +191,7 @@
                     Stripe
                   </label>
                 </div>
-                <div v-if="paymentMethod === 'stripe'" class="mt-3">
+                <div v-show="paymentMethod === 'stripe'" class="mt-3">
                   <!-- Stripe Card Element will be mounted here -->
                   <div id="card-element" class="p-3 border rounded"></div>
                   <div id="card-errors" role="alert" class="text-danger mt-2"></div>
@@ -206,8 +206,8 @@
             <div class="card sticky-top" data-aos="fade-up" data-aos-delay="300">
               <div class="card-body">
                 <h5>Total: ${{ totalAmount.toFixed(2) }}</h5>
-                <button @click="placeOrder" class="btn btn-primary w-100 mt-3" :disabled="!canPlaceOrder">
-                  Place Order
+                <button @click="placeOrder" class="btn btn-primary w-100 mt-3" :disabled="!canPlaceOrder || isPlacingOrder">
+                  {{ isPlacingOrder ? 'Processing...' : 'Place Order' }}
                 </button>
               </div>
             </div>
@@ -219,13 +219,14 @@
 </template>
 
 <script>
+import { nextTick } from 'vue'
 import { mapGetters } from 'vuex'
 import axios from 'axios'
 import { loadStripe } from '@stripe/stripe-js'
 
 const stripePublishableKey = process.env.VUE_APP_STRIPE_PUBLISHABLE || '';
 // If no publishable key is provided, keep stripePromise as null so callers can detect missing configuration.
-let stripePromise = null;
+let stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 
 export default {
   name: 'Checkout',
@@ -250,15 +251,23 @@ export default {
       useCoins: false,
       coinsToUse: 0,
       availableCoins: 0,
+      isPlacingOrder: false
     }
   },
   computed: {
     ...mapGetters(['cartItems', 'currentUser', 'isAuthenticated']),
     selectedIds() {
-      return this.$route.query.items ? this.$route.query.items.split(',') : []
+      const rawIds = Array.isArray(this.$route.query.items)
+        ? this.$route.query.items.join(',')
+        : this.$route.query.items
+      if (!rawIds) return []
+      return rawIds
+        .split(',')
+        .map(id => decodeURIComponent(id))
+        .filter(Boolean)
     },
     selectedItems() {
-      return this.cartItems.filter(item => this.selectedIds.includes(item._id))
+      return this.cartItems.filter(item => this.selectedIds.includes(item.cartItemKey))
     },
     shippingCost() {
       return 5.99
@@ -316,11 +325,6 @@ export default {
     async paymentMethod(newVal) {
       if (newVal === 'stripe' && !this.stripe) {
         await this.setupStripe();
-      } else if (newVal !== 'stripe' && this.cardElement) {
-        if (this.cardElement && typeof this.cardElement.destroy === 'function') {
-          this.cardElement.destroy();
-        }
-        this.cardElement = null;
       }
     }
   },
@@ -356,10 +360,6 @@ export default {
         return;
       }
       
-      if (!stripePromise) {
-        stripePromise = loadStripe(stripePublishableKey);
-      }
-
       // Await the loader promise and ensure it resolved to a Stripe instance
       try {
         this.stripe = await stripePromise;
@@ -393,26 +393,30 @@ export default {
         }
       });
 
-      // Use a timeout to ensure the element is in the DOM
-      setTimeout(() => {
-        if (document.getElementById('card-element')) {
-          this.cardElement.mount('#card-element');
-          this.cardElement.on('change', (event) => {
-            const displayError = document.getElementById('card-errors');
-            if (event.error) {
-              displayError.textContent = event.error.message;
-            } else {
-              displayError.textContent = '';
-            }
-          });
-        }
-      }, 0);
+      await nextTick()
+      if (document.getElementById('card-element')) {
+        this.cardElement.mount('#card-element');
+        this.cardElement.on('change', (event) => {
+          const displayError = document.getElementById('card-errors');
+          if (event.error) {
+            displayError.textContent = event.error.message;
+          } else {
+            displayError.textContent = '';
+          }
+        });
+      }
     },
     async placeOrder() {
-      if (this.paymentMethod === 'stripe') {
-        await this.handleStripePayment();
-      } else {
-        await this.handleCashOnDelivery();
+      if (this.isPlacingOrder) return;
+      this.isPlacingOrder = true;
+      try {
+        if (this.paymentMethod === 'stripe') {
+          await this.handleStripePayment();
+        } else {
+          await this.handleCashOnDelivery();
+        }
+      } finally {
+        this.isPlacingOrder = false;
       }
     },
     async createOrder(paymentIntentId = null, coinsAlreadyDeducted = false) {
@@ -448,16 +452,12 @@ export default {
             Authorization: `Bearer ${token}`
           }
         })
-        this.$toast.success('Order placed successfully!', { position: 'top-right' });
+        this.$toast.success('Order placed successfully!', { position: 'top-right', timeout: 5000, closeOnClick: false });
 
-        // Remove placed items from cart
-        for (const item of this.selectedItems) {
-          try {
-            await this.$store.dispatch('removeFromCart', item._id)
-          } catch (e) {
-            // Ignore errors - item may already be removed
-          }
-        }
+        // Remove placed items from cart in parallel to reduce waiting time
+        await Promise.all(this.selectedItems.map(item =>
+          this.$store.dispatch('removeFromCart', item).catch(() => null)
+        ))
 
         // Redirect to profile
         this.$router.push('/profile');

@@ -40,10 +40,10 @@ class CartController {
 
     async updateItem(req, res) {
         try {
-            const { quantity } = req.body;
+            const { quantity, selectedOptions } = req.body;
             if (quantity == null) return res.status(400).json({ message: 'quantity is required' });
 
-            const cart = await cartService.updateItemQuantity(req.user.id, req.params.productId, quantity);
+            const cart = await cartService.updateItemQuantity(req.user.id, req.params.productId, quantity, selectedOptions);
             res.json(cart);
         } catch (error) {
             if (error.message === 'Product not found') return res.status(404).json({ message: error.message });
@@ -55,7 +55,8 @@ class CartController {
 
     async removeItem(req, res) {
         try {
-            const cart = await cartService.removeItem(req.user.id, req.params.productId);
+            const selectedOptions = req.body?.selectedOptions;
+            const cart = await cartService.removeItem(req.user.id, req.params.productId, selectedOptions);
             res.json(cart);
         } catch (error) {
             if (error.message === 'Cart not found') return res.status(404).json({ message: 'Cart not found' });

@@ -1367,9 +1367,9 @@ input:focus:not(:focus-visible) {
 
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *:not(:is(.Vue-Toastification__container, .Vue-Toastification__container *)),
+  *:not(:is(.Vue-Toastification__container, .Vue-Toastification__container *))::before,
+  *:not(:is(.Vue-Toastification__container, .Vue-Toastification__container *))::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

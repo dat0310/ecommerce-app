@@ -168,7 +168,6 @@ export default {
 </script>
 
 <style scoped>
-/* ===== Login Page - Premium Design System ===== */
 .login {
   min-height: 100vh;
   position: relative;

@@ -620,7 +620,7 @@ export default {
       }
       if (!this.product) return
       if (this.hasVariants && !this.allOptionsSelected) {
-        this.$toast.warning('Please select all options before buying.', { position: 'top-right', timeout: 3000 })
+        this.$toast.warning('Please select all options before buying.', { position: 'top-right', timeout: 5000, closeOnClick: false })
         return
       }
       const productToAdd = {
@@ -640,7 +640,7 @@ export default {
         return
       }
       if (this.hasVariants && !this.allOptionsSelected) {
-        this.$toast.warning('Please select all options before adding to cart.', { position: 'top-right', timeout: 3000 })
+        this.$toast.warning('Please select all options before adding to cart.', { position: 'top-right', timeout: 5000, closeOnClick: false })
         return
       }
       if (this.quantity < 1) {
