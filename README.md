@@ -1,45 +1,111 @@
-# E-commerce App
+# E-Commerce Application
 
-This is an e-commerce application built with Node.js, Express, MongoDB, and Vue.js.
+A full-stack E-Commerce application built with **Node.js**, **Express**, **MongoDB**, and **Vue.js**, containerized with **Docker & Docker Compose**.
 
-## Services
+## 🏗 Architecture Overview
 
-- **API Gateway**: The single entry point for all client requests.
-- **Product Service**: Manages products.
-- **User Service**: Manages users.
-- **Order Service**: Manages orders.
-- **Cart Service**: Manages shopping carts.
-- **Frontend**: The Vue.js client application.
+This project uses a **Consolidated Modular Monolith** architecture for the backend and a **Single Page Application (SPA)** for the frontend:
 
-## Getting Started
+- **Frontend (`/frontend`)**: Built with Vue.js 3, Vue Router, Vuex, and Axios.
+- **Backend (`/backend`)**: Consolidated Express.js server organized by domain modules (`src/modules/*`).
+- **Database (`/mongo`)**: MongoDB 5 instance with isolated database collections for each module (`userdb`, `productdb`, `orderdb`, `cartdb`, `chatdb`, `voucherdb`, `coindb`).
 
-To get started, you will need to have Docker and Docker Compose installed.
+### Backend Modules & Features
 
-1. Clone the repository.
-2. Run `docker-compose up -d --build` to build and start the services.
-3. The application will be available at `http://localhost:8080`.
+- 👤 **User Module**: User registration, authentication (JWT), profiles, seller/customer roles.
+- 🛍 **Product Module**: Product catalog, category management, image uploads.
+- 🛒 **Cart Module**: Shopping cart management.
+- 📦 **Order Module**: Order creation, tracking, and status updates.
+- 💳 **Payment Module**: Integration with **Stripe** (Payment Intents).
+- 💬 **Chat Module**: Real-time customer support & chat message history.
+- 🏷 **Voucher Module**: Discount codes and promotional vouchers.
+- 🪙 **Coin Module**: Reward points and coin balance management.
+- 📜 **Purchase Module**: Order history & purchase tracking for buyers.
 
-## Stripe (Payments) setup
+---
 
-To enable Stripe payments locally and in Docker, follow these steps:
+## 🚀 Quick Start with Docker
 
-- Do NOT commit your secret key to source control.
-- Copy `payment-service/.env.example` to `payment-service/.env` and set your Stripe secret key there:
+### Prerequisites
 
-	STRIPE_SECRET_KEY=sk_test_...
+- [Docker](https://www.docker.com/) and [Docker Compose](https://docs.docker.com/compose/) installed.
 
-- For the frontend, copy `frontend/.env.example` to `frontend/.env.local` (or set environment variables) and set the publishable key:
+### Running the Application
 
-	VUE_APP_STRIPE_PUBLISHABLE=pk_test_...
+1. **Clone the repository** (if not already cloned):
+   ```bash
+   git clone <repository-url>
+   cd ecommerce-app
+   ```
 
-- To run with docker-compose and pass the secret via an env file, create a top-level `.env.dev` (not committed) containing:
+2. **Environment Configuration**:
+   - Create or verify `.env` files in root, `backend/.env`, and `frontend/.env`.
+   - Update `STRIPE_SECRET_KEY` and `VUE_APP_STRIPE_PUBLISHABLE` if using Stripe test keys.
 
-	STRIPE_SECRET_KEY=sk_test_...
+3. **Start services using Docker Compose**:
+   ```bash
+   docker-compose up -d --build
+   ```
 
-	Then start services with:
+4. **Access Applications**:
+   - **Frontend App**: [http://localhost:8080](http://localhost:8080)
+   - **Backend API**: [http://localhost:3000](http://localhost:3000)
+   - **Swagger API Docs**: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+   - **Health Check**: [http://localhost:3000/health](http://localhost:3000/health)
 
-	docker-compose --env-file .env.dev up --build
+---
 
-- Alternatively you can export environment variables in your shell before running individual services.
+## ⚙️ Environment Variables
 
-The payment service exposes an endpoint at `/api/payments/create-payment-intent` (proxied through the API gateway at `http://localhost:3000/api/payments/create-payment-intent`) which the frontend uses to obtain a PaymentIntent client secret.
+### Backend (`backend/.env`)
+
+```env
+PORT=3000
+MONGODB_USER_URI=mongodb://mongo:27017/userdb
+MONGODB_PRODUCT_URI=mongodb://mongo:27017/productdb
+MONGODB_ORDER_URI=mongodb://mongo:27017/orderdb
+MONGODB_CART_URI=mongodb://mongo:27017/cartdb
+MONGODB_CHAT_URI=mongodb://mongo:27017/chatdb
+MONGODB_VOUCHER_URI=mongodb://mongo:27017/voucherdb
+MONGODB_COIN_URI=mongodb://mongo:27017/coindb
+
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRE=7d
+
+STRIPE_SECRET_KEY=sk_test_...
+```
+
+### Frontend (`frontend/.env`)
+
+```env
+VUE_APP_API_URL=http://localhost:3000
+VUE_APP_STRIPE_PUBLISHABLE=pk_test_...
+```
+
+---
+
+## 🛠 Project Directory Structure
+
+```text
+ecommerce-app/
+├── backend/
+│   ├── src/
+│   │   ├── modules/       # Domain modules (user, product, cart, order, etc.)
+│   │   ├── middleware/    # Auth & error handling middlewares
+│   │   ├── config/        # Database & app configurations
+│   │   ├── utils/         # Helper functions
+│   │   └── app.js         # Express app entry point
+│   ├── uploads/           # Uploaded images (products, chat)
+│   └── server.js          # HTTP server initializer
+├── frontend/
+│   ├── src/
+│   │   ├── api/           # Axios API modules
+│   │   ├── components/    # Reusable Vue components
+│   │   ├── views/         # Vue views / page components
+│   │   ├── composables/   # Composition functions
+│   │   └── router/        # Vue Router configuration
+│   └── public/
+├── docker-compose.yml     # Container orchestration specification
+└── README.md
+```
+

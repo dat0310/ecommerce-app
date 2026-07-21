@@ -9,6 +9,7 @@ import Checkout from '../views/Checkout.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import SellerDashboard from '../views/SellerDashboard.vue'
 import Wishlist from '../views/Wishlist.vue'
+import ShopPage from '../views/ShopPage.vue'
 import store from '../store'
 
 const routes = [
@@ -26,6 +27,11 @@ const routes = [
     path: '/products/:id',
     name: 'ProductDetail',
     component: ProductDetail
+  },
+  {
+    path: '/shop/:sellerId',
+    name: 'ShopPage',
+    component: ShopPage
   },
   {
     path: '/login',

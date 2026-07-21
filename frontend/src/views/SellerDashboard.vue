@@ -719,572 +719,565 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, reactive, computed, watch, onMounted, getCurrentInstance } from 'vue'
+import { useStore } from 'vuex'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import axios from 'axios'
 
-export default {
-  name: 'SellerDashboard',
+const store = useStore()
+const { proxy } = getCurrentInstance()
+const queryClient = useQueryClient()
 
-  data() {
-    return {
-      activeTab: 'dashboard',
-      myProducts: [],
-      myOrders: [],
-      sellerRevenue: 0,
-      editingProduct: null,
-      saving: false,
-      isDragOver: false,
-      imageFiles: [],
-      imagePreviews: [],
-      existingImages: [],
-      variants: [],
-      productCombinations: [],
-      deletedCombinationKeys: [], // Track manually deleted combinations
-      isHydratingProductForm: false,
-      productForm: {
-        name: '',
-        price: '',
-        stock: '',
-        description: '',
-        category: ''
-      },
-      // Refund Response Modal
-      showRefundResponseModal: false,
-      refundResponseOrder: null,
-      refundResponseAction: '', // 'approve' or 'reject'
-      refundResponseNote: '',
-      refundResponseSubmitting: false
-    }
-  },
-  computed: {
-    approvedProducts() {
-      return this.myProducts.filter(product => product.status === 'approved')
-    },
-    pendingProducts() {
-      return this.myProducts.filter(product => product.status === 'pending')
-    },
-    rejectedProducts() {
-      return this.myProducts.filter(product => product.status === 'rejected')
-    },
-    totalImageCount() {
-      return this.existingImages.length + this.imageFiles.length
-    },
-    generatedCombinations() {
-      const validVariants = this.variants.filter(v => v.name && v.options.some(o => o.value))
-      if (validVariants.length === 0) return []
+const activeTab = ref('dashboard')
+const editingProduct = ref(null)
+const isDragOver = ref(false)
+const imageFiles = ref([])
+const imagePreviews = ref([])
+const existingImages = ref([])
+const variants = ref([])
+const productCombinations = ref([])
+const deletedCombinationKeys = ref([])
+const isHydratingProductForm = ref(false)
 
-      const optionArrays = validVariants.map(v => 
-        v.options.filter(o => o.value).map(o => ({ name: v.name, value: o.value }))
-      )
+const productForm = reactive({
+  name: '',
+  price: '',
+  stock: '',
+  description: '',
+  category: ''
+})
 
-      const cartesian = (arrays) => {
-        if (arrays.length === 0) return [[]]
-        const [first, ...rest] = arrays
-        const restCombos = cartesian(rest)
-        return first.flatMap(item => restCombos.map(combo => [item, ...combo]))
-      }
+const showRefundResponseModal = ref(false)
+const refundResponseOrder = ref(null)
+const refundResponseAction = ref('') // 'approve' or 'reject'
+const refundResponseNote = ref('')
 
-      return cartesian(optionArrays).map(combo => {
-        const options = {}
-        combo.forEach(c => { options[c.name] = c.value })
-        return options
-      })
-    }
-  },
-  watch: {
-    generatedCombinations: {
-      handler(newCombos) {
-        if (this.isHydratingProductForm) return
+const totalImageCount = computed(() => existingImages.value.length + imageFiles.value.length)
 
-        const updated = newCombos
-          .filter(comboOpts => {
-            // Skip combinations that were manually deleted
-            const key = this.getCombinationKey(comboOpts)
-            return !this.deletedCombinationKeys.includes(key)
-          })
-          .map(comboOpts => {
-            const key = this.getCombinationKey(comboOpts)
-            const existing = this.productCombinations.find(
-              pc => this.getCombinationKey(pc.options) === key
-            )
-            return existing
-              ? { ...existing }
-              : { options: comboOpts, price: Number(this.productForm.price) || 0, stock: 0 }
-          })
-        this.productCombinations = updated
-      },
-      deep: true
-    }
-  },
-  async mounted() {
-    await this.loadSellerData()
-  },
-  methods: {
-    getCombinationKey(options) {
-      if (!options) return '{}'
+const currentUser = computed(() => store.getters.currentUser)
 
-      const plainOptions = options instanceof Map
-        ? Object.fromEntries(options)
-        : options
+// Queries
+const { data: myProductsData, refetch: refetchProducts } = useQuery({
+  queryKey: ['sellerProducts'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/products/seller/my-products')
+    return data
+  }
+})
+const myProducts = computed(() => myProductsData.value || [])
+const approvedProducts = computed(() => myProducts.value.filter(p => p.status === 'approved'))
+const pendingProducts = computed(() => myProducts.value.filter(p => p.status === 'pending'))
+const rejectedProducts = computed(() => myProducts.value.filter(p => p.status === 'rejected'))
 
-      const sortedOptions = Object.keys(plainOptions)
-        .sort()
-        .reduce((acc, key) => {
-          acc[key] = plainOptions[key]
-          return acc
-        }, {})
+const { data: myOrdersData, refetch: refetchOrders } = useQuery({
+  queryKey: ['sellerOrders'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/orders/seller/my-orders')
+    return data
+  }
+})
+const myOrders = computed(() => myOrdersData.value || [])
 
-      return JSON.stringify(sortedOptions)
-    },
-    async loadSellerData() {
-      try {
-        await Promise.all([
-          this.loadMyProducts(),
-          this.loadMyOrders()
-        ])
-      } catch (error) {
-        console.error('Error loading seller data:', error)
-      }
-    },
-    async loadMyProducts() {
-      try {
-        const response = await axios.get('/api/products/seller/my-products')
-        this.myProducts = response.data
-      } catch (error) {
-        console.error('Error loading my products:', error)
-      }
-    },
-    async loadMyOrders() {
-      try {
-        const response = await axios.get('/api/orders/seller/my-orders')
-        this.myOrders = response.data
-        this.calculateSellerRevenue()
-      } catch (error) {
-        console.error('Error loading my orders:', error)
-      }
-    },
-    calculateSellerRevenue() {
-  const sellerId = this.$store.getters.currentUser && this.$store.getters.currentUser.id
-      let total = 0
-      for (const order of this.myOrders) {
-        if (order.paymentStatus !== 'completed') continue
-        for (const product of order.products) {
-          if (product.sellerId === sellerId) {
-            total += (product.price || 0) * (product.quantity || 0)
-          }
-        }
-      }
-      this.sellerRevenue = total
-    },
-    async saveProduct() {
-      this.saving = true
-      try {
-        const formData = new FormData()
-        formData.append('name', this.productForm.name)
-        formData.append('description', this.productForm.description)
-        formData.append('category', this.productForm.category)
-
-        // Auto-calculate price & stock from combinations
-        if (this.productCombinations.length > 0) {
-          const prices = this.productCombinations.map(c => Number(c.price) || 0)
-          const stocks = this.productCombinations.map(c => Number(c.stock) || 0)
-          formData.append('price', Math.min(...prices))
-          formData.append('stock', stocks.reduce((a, b) => a + b, 0))
-        } else {
-          formData.append('price', 0)
-          formData.append('stock', 0)
-        }
-        // Append general product image files
-        for (const file of this.imageFiles) {
-          formData.append('images', file)
-        }
-
-        // Send existing images for edit mode (always send even if empty to preserve state)
-        if (this.editingProduct) {
-          formData.append('existingImages', JSON.stringify(this.existingImages))
-        }
-
-        // Send variants with existing image paths
-        if (this.variants.length > 0) {
-          const cleanVariants = this.variants
-            .filter(v => v.name && v.options.length > 0)
-            .map((v, vIdx) => ({
-              name: v.name,
-              options: v.options.filter(o => o.value).map((o, oIdx) => {
-                const opt = { value: o.value }
-                // If option has an existing image (not a new file), include path
-                if (o.image && !o.imageFile) {
-                  opt.image = o.image
-                }
-                return opt
-              })
-            }))
-            .filter(v => v.options.length > 0)
-          if (cleanVariants.length > 0) {
-            formData.append('variants', JSON.stringify(cleanVariants))
-          }
-
-          // Append option image files
-          this.variants.forEach((v, vIdx) => {
-            v.options.forEach((o, oIdx) => {
-              if (o.imageFile) {
-                formData.append(`optionImage_${vIdx}_${oIdx}`, o.imageFile)
-              }
-            })
-          })
-        }
-
-        // Always send combinations (including empty) so deletions are persisted.
-        const cleanCombinations = this.productCombinations
-          .map(c => ({
-            options: c.options,
-            price: Number(c.price) || 0,
-            stock: Number(c.stock) || 0
-          }))
-        formData.append('productCombinations', JSON.stringify(cleanCombinations))
-
-        const config = { headers: { 'Content-Type': 'multipart/form-data' } }
-
-        if (this.editingProduct) {
-          await axios.patch(`/api/products/${this.editingProduct._id}`, formData, config)
-          this.$toast.success('Product updated successfully')
-        } else {
-          await axios.post('/api/products', formData, config)
-          this.$toast.success('Product added successfully! It is now pending admin approval.')
-        }
-        
-        await this.loadMyProducts()
-        this.cancelEdit()
-      } catch (error) {
-        console.error('Error saving product:', error)
-        this.$toast.error(error.response?.data?.message || 'Failed to save product')
-      } finally {
-        this.saving = false
-      }
-    },
-    editProduct(product) {
-      this.isHydratingProductForm = true
-      this.editingProduct = product
-      this.productForm = {
-        name: product.name,
-        price: product.price,
-        stock: product.stock,
-        description: product.description,
-        category: product.category
-      }
-      this.imageFiles = []
-      this.imagePreviews = []
-      this.deletedCombinationKeys = []
-      if (product.images && product.images.length > 0) {
-        this.existingImages = [...product.images]
-      } else if (product.image) {
-        this.existingImages = [product.image]
-      } else {
-        this.existingImages = []
-      }
-      if (product.variants && product.variants.length > 0) {
-        this.variants = product.variants.map(v => ({
-          name: v.name,
-          options: v.options.map(o => ({ value: o.value, image: o.image || '', imageFile: null, imagePreview: '' }))
-        }))
-      } else {
-        this.variants = []
-      }
-      // Load existing combinations
-      if (product.productCombinations && product.productCombinations.length > 0) {
-        this.productCombinations = product.productCombinations.map(c => ({
-          options: c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {}),
-          price: c.price || 0,
-          stock: c.stock || 0
-        }))
-      } else {
-        this.productCombinations = []
-      }
-
-      // Persist deleted rows across edit sessions by marking combinations that are
-      // valid from variants but absent in stored product combinations as deleted.
-      const existingKeys = new Set(
-        this.productCombinations.map(c => this.getCombinationKey(c.options))
-      )
-      this.deletedCombinationKeys = this.generatedCombinations
-        .map(c => this.getCombinationKey(c))
-        .filter(key => !existingKeys.has(key))
-
-      this.activeTab = 'add-product'
-      this.$nextTick(() => {
-        this.isHydratingProductForm = false
-      })
-    },
-    cancelEdit() {
-      this.editingProduct = null
-      this.isHydratingProductForm = false
-      this.imageFiles = []
-      this.imagePreviews = []
-      this.existingImages = []
-      this.variants = []
-      this.productCombinations = []
-      this.deletedCombinationKeys = []
-      this.productForm = {
-        name: '',
-        price: '',
-        stock: '',
-        description: '',
-        category: ''
-      }
-      this.activeTab = 'products'
-    },
-    handleFileSelect(event) {
-      const files = Array.from(event.target.files)
-      this.processFiles(files)
-      if (this.$refs.fileInput) this.$refs.fileInput.value = ''
-    },
-    handleDrop(event) {
-      this.isDragOver = false
-      const files = Array.from(event.dataTransfer.files)
-      this.processFiles(files)
-    },
-    processFiles(files) {
-      const remaining = 10 - this.totalImageCount
-      if (remaining <= 0) {
-        this.$toast.warning('Maximum 10 images allowed')
-        return
-      }
-      const toProcess = files.slice(0, remaining)
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-      
-      for (const file of toProcess) {
-        if (file.size > 5 * 1024 * 1024) {
-          this.$toast.error(`${file.name} exceeds 5MB limit`)
-          continue
-        }
-        if (!allowedTypes.includes(file.type)) {
-          this.$toast.error(`${file.name} is not a supported image format`)
-          continue
-        }
-        this.imageFiles.push(file)
-        const reader = new FileReader()
-        reader.onload = (e) => { this.imagePreviews.push(e.target.result) }
-        reader.readAsDataURL(file)
-      }
-    },
-    removeNewImage(index) {
-      this.imageFiles.splice(index, 1)
-      this.imagePreviews.splice(index, 1)
-    },
-    removeExistingImage(index) {
-      this.existingImages.splice(index, 1)
-    },
-    addVariantGroup() {
-      this.variants.push({
-        name: '',
-        options: [{ value: '', image: '', imageFile: null, imagePreview: '' }]
-      })
-    },
-    removeVariantGroup(index) {
-      this.variants.splice(index, 1)
-    },
-    addVariantOption(variantIndex) {
-      this.variants[variantIndex].options.push({ value: '', image: '', imageFile: null, imagePreview: '' })
-    },
-    removeVariantOption(variantIndex, optionIndex) {
-      this.variants[variantIndex].options.splice(optionIndex, 1)
-    },
-    handleOptionImageSelect(vIndex, oIndex, event) {
-      const file = event.target.files[0]
-      if (!file) return
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-      if (!allowedTypes.includes(file.type)) {
-        this.$toast.error('Only JPEG, PNG, WebP, GIF are supported')
-        return
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        this.$toast.error('Image must be under 5MB')
-        return
-      }
-      const opt = this.variants[vIndex].options[oIndex]
-      opt.imageFile = file
-      const reader = new FileReader()
-      reader.onload = (e) => { opt.imagePreview = e.target.result }
-      reader.readAsDataURL(file)
-    },
-    removeOptionImage(vIndex, oIndex) {
-      const opt = this.variants[vIndex].options[oIndex]
-      opt.image = ''
-      opt.imageFile = null
-      opt.imagePreview = ''
-    },
-    removeCombination(index) {
-      const combo = this.productCombinations[index]
-      if (combo) {
-        // Track deleted combination so watcher won't recreate it
-        const key = this.getCombinationKey(combo.options)
-        if (!this.deletedCombinationKeys.includes(key)) {
-          this.deletedCombinationKeys.push(key)
-        }
-      }
-      this.productCombinations.splice(index, 1)
-    },
-    async deleteProduct(productId) {
-      if (confirm('Are you sure you want to delete this product?')) {
-        try {
-          await axios.delete(`/api/products/${productId}`)
-          await this.loadMyProducts()
-          this.$toast.success('Product deleted successfully')
-        } catch (error) {
-          console.error('Error deleting product:', error)
-          this.$toast.error('Failed to delete product')
-        }
-      }
-    },
-    async updateOrderStatus(orderId, status) {
-      // Sellers cannot mark orders as completed
-      if (status === 'completed') {
-        this.$toast.error('Sellers cannot mark orders as completed. Only the buyer can confirm receipt.')
-        return
-      }
-      try {
-        await axios.patch(`/api/orders/${orderId}/status`, { status })
-        await this.loadMyOrders()
-        this.$toast.success('Order status updated successfully')
-      } catch (error) {
-        console.error('Error updating order status:', error)
-        this.$toast.error(error.response?.data?.message || 'Failed to update order status')
-      }
-    },
-    async acceptOrder(orderId) {
-      try {
-        await axios.patch(`/api/orders/${orderId}/accept`)
-        await this.loadMyOrders()
-        this.$toast.success('Order accepted successfully')
-      } catch (error) {
-        console.error('Error accepting order:', error)
-        this.$toast.error('Failed to accept order')
-      }
-    },
-    contactBuyer(order) {
-      const buyerId = order.userId
-      const buyerName = (order.shippingAddress && order.shippingAddress.fullName) || order.userEmail || 'Buyer'
-      if (!buyerId) {
-        this.$toast.error('Buyer info not available.')
-        return
-      }
-      const firstProduct = order.products && order.products[0]
-      const productContext = firstProduct ? {
-        productId: firstProduct.productId,
-        name: firstProduct.productName || firstProduct.name || 'Product',
-        image: firstProduct.image || '',
-        price: firstProduct.price
-      } : null
-      window.dispatchEvent(new CustomEvent('open-seller-chat', {
-        detail: {
-          sellerId: buyerId,
-          sellerName: buyerName,
-          productContext
-        }
-      }))
-    },
-    getStatusBadgeClass(status) {
-      const classes = {
-        pending: 'bg-warning',
-        approved: 'bg-success',
-        rejected: 'bg-danger',
-        confirmed: 'bg-info',
-        processing: 'bg-primary',
-        shipped: 'bg-secondary',
-        delivered: 'bg-success',
-        completed: 'bg-success',
-        cancelled: 'bg-danger'
-      }
-      return classes[status] || 'bg-secondary'
-    },
-    getStatusDisplayText(status) {
-      const statusText = {
-        pending: 'Pending Approval',
-        approved: 'Approved',
-        rejected: 'Rejected',
-        confirmed: 'Confirmed',
-        processing: 'Processing',
-        shipped: 'Shipping',
-        delivered: 'Delivered',
-        completed: 'Completed',
-        cancelled: 'Cancelled',
-        refund_requested: 'Refund',
-        refund_approved: 'Refund Approved',
-        refund_rejected: 'Refund Rejected',
-        dispute_open: 'Dispute - Under Review',
-        dispute_resolved: 'Dispute Resolved'
-      }
-      return statusText[status] || status
-    },
-    formatDate(date) {
-      return new Date(date).toLocaleDateString()
-    },
-    formatCurrency(value) {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-    },
-    getProductImage(productId) {
-      const product = this.myProducts.find(p => p._id === productId);
-      return product ? (product.image || 'https://via.placeholder.com/80') : 'https://via.placeholder.com/80';
-    },
-    viewOrderDetails(order) {
-      const sellerProducts = order.products.filter(product => 
-  product.sellerId === (this.$store.getters.currentUser && this.$store.getters.currentUser.id)
-      )
-      
-      let details = `Order #${order.orderNumber}\n`
-      const customerName = (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail
-      details += `Customer: ${customerName}\n`
-      details += `Status: ${order.status}\n`
-      details += `Date: ${this.formatDate(order.createdAt)}\n\n`
-      details += `Your Products:\n`
-      
-      sellerProducts.forEach(product => {
-        details += `• ${product.productName} - Qty: ${product.quantity} - $${(product.price * product.quantity).toFixed(2)}\n`
-      })
-      
-      this.$toast.info('Order Details', {
-        description: details,
-        duration: 6000
-      })
-    },
-    // Refund Response Modal
-    openRefundResponseModal(order, action) {
-      this.refundResponseOrder = order;
-      this.refundResponseAction = action;
-      this.refundResponseNote = '';
-      this.showRefundResponseModal = true;
-    },
-    closeRefundResponseModal() {
-      this.showRefundResponseModal = false;
-      this.refundResponseOrder = null;
-      this.refundResponseAction = '';
-      this.refundResponseNote = '';
-    },
-    async submitRefundResponse() {
-      const order = this.refundResponseOrder;
-      if (!order) return;
-      this.refundResponseSubmitting = true;
-      try {
-        const endpoint = this.refundResponseAction === 'approve' 
-          ? `/api/orders/${order._id}/approve-refund`
-          : `/api/orders/${order._id}/reject-refund`;
-        
-        await axios.patch(endpoint, { note: this.refundResponseNote });
-        await this.loadMyOrders();
-        
-        const msg = this.refundResponseAction === 'approve' 
-          ? 'Refund approved successfully' 
-          : 'Refund rejected. Buyer may escalate to admin.';
-        this.$toast.success(msg);
-        this.closeRefundResponseModal();
-      } catch (error) {
-        console.error('Error responding to refund:', error);
-        this.$toast.error(error.response?.data?.message || 'Failed to process refund response');
-      } finally {
-        this.refundResponseSubmitting = false;
+const sellerRevenue = computed(() => {
+  const sellerId = currentUser.value?.id
+  let total = 0
+  for (const order of myOrders.value) {
+    if (order.paymentStatus !== 'completed') continue
+    for (const product of order.products) {
+      if (product.sellerId === sellerId) {
+        total += (product.price || 0) * (product.quantity || 0)
       }
     }
   }
+  return total
+})
+
+const getCombinationKey = (options) => {
+  if (!options) return '{}'
+  const plainOptions = options instanceof Map ? Object.fromEntries(options) : options
+  const sortedOptions = Object.keys(plainOptions).sort().reduce((acc, key) => {
+    acc[key] = plainOptions[key]
+    return acc
+  }, {})
+  return JSON.stringify(sortedOptions)
+}
+
+const generatedCombinations = computed(() => {
+  const validVariants = variants.value.filter(v => v.name && v.options.some(o => o.value))
+  if (validVariants.length === 0) return []
+
+  const optionArrays = validVariants.map(v => 
+    v.options.filter(o => o.value).map(o => ({ name: v.name, value: o.value }))
+  )
+
+  const cartesian = (arrays) => {
+    if (arrays.length === 0) return [[]]
+    const [first, ...rest] = arrays
+    const restCombos = cartesian(rest)
+    return first.flatMap(item => restCombos.map(combo => [item, ...combo]))
+  }
+
+  return cartesian(optionArrays).map(combo => {
+    const options = {}
+    combo.forEach(c => { options[c.name] = c.value })
+    return options
+  })
+})
+
+watch(generatedCombinations, (newCombos) => {
+  if (isHydratingProductForm.value) return
+
+  const updated = newCombos
+    .filter(comboOpts => {
+      const key = getCombinationKey(comboOpts)
+      return !deletedCombinationKeys.value.includes(key)
+    })
+    .map(comboOpts => {
+      const key = getCombinationKey(comboOpts)
+      const existing = productCombinations.value.find(
+        pc => getCombinationKey(pc.options) === key
+      )
+      return existing
+        ? { ...existing }
+        : { options: comboOpts, price: Number(productForm.price) || 0, stock: 0 }
+    })
+  productCombinations.value = updated
+}, { deep: true })
+
+// Mutations
+const saveProductMutation = useMutation({
+  mutationFn: async (formData) => {
+    const config = { headers: { 'Content-Type': 'multipart/form-data' } }
+    if (editingProduct.value) {
+      await axios.patch(`/api/products/${editingProduct.value._id}`, formData, config)
+    } else {
+      await axios.post('/api/products', formData, config)
+    }
+  },
+  onSuccess: () => {
+    proxy.$toast?.success(editingProduct.value ? 'Product updated successfully' : 'Product added successfully! It is now pending admin approval.', { position: 'top-right', timeout: 3000 })
+    refetchProducts()
+    cancelEdit()
+  },
+  onError: (error) => {
+    console.error('Error saving product:', error)
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to save product', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const deleteProductMutation = useMutation({
+  mutationFn: async (productId) => {
+    await axios.delete(`/api/products/${productId}`)
+  },
+  onSuccess: () => {
+    proxy.$toast?.success('Product deleted successfully', { position: 'top-right', timeout: 3000 })
+    refetchProducts()
+  },
+  onError: (error) => {
+    console.error('Error deleting product:', error)
+    proxy.$toast?.error('Failed to delete product', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const updateOrderStatusMutation = useMutation({
+  mutationFn: async ({ orderId, status }) => {
+    if (status === 'completed') {
+      throw new Error('Sellers cannot mark orders as completed. Only the buyer can confirm receipt.')
+    }
+    await axios.patch(`/api/orders/${orderId}/status`, { status })
+  },
+  onSuccess: () => {
+    proxy.$toast?.success('Order status updated successfully', { position: 'top-right', timeout: 3000 })
+    refetchOrders()
+  },
+  onError: (error) => {
+    console.error('Error updating order status:', error)
+    proxy.$toast?.error(error.response?.data?.message || error.message || 'Failed to update order status', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const acceptOrderMutation = useMutation({
+  mutationFn: async (orderId) => {
+    await axios.patch(`/api/orders/${orderId}/accept`)
+  },
+  onSuccess: () => {
+    proxy.$toast?.success('Order accepted successfully', { position: 'top-right', timeout: 3000 })
+    refetchOrders()
+  },
+  onError: (error) => {
+    console.error('Error accepting order:', error)
+    proxy.$toast?.error('Failed to accept order', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const submitRefundResponseMutation = useMutation({
+  mutationFn: async () => {
+    const order = refundResponseOrder.value
+    if (!order) return
+    const endpoint = refundResponseAction.value === 'approve' 
+      ? `/api/orders/${order._id}/approve-refund`
+      : `/api/orders/${order._id}/reject-refund`
+    await axios.patch(endpoint, { note: refundResponseNote.value })
+  },
+  onSuccess: () => {
+    const msg = refundResponseAction.value === 'approve' 
+      ? 'Refund approved successfully' 
+      : 'Refund rejected. Buyer may escalate to admin.'
+    proxy.$toast?.success(msg, { position: 'top-right', timeout: 3000 })
+    refetchOrders()
+    closeRefundResponseModal()
+  },
+  onError: (error) => {
+    console.error('Error responding to refund:', error)
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to process refund response', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const saving = computed(() => saveProductMutation.isPending.value)
+const refundResponseSubmitting = computed(() => submitRefundResponseMutation.isPending.value)
+
+// Methods
+const saveProduct = () => {
+  const formData = new FormData()
+  formData.append('name', productForm.name)
+  formData.append('description', productForm.description)
+  formData.append('category', productForm.category)
+
+  if (productCombinations.value.length > 0) {
+    const prices = productCombinations.value.map(c => Number(c.price) || 0)
+    const stocks = productCombinations.value.map(c => Number(c.stock) || 0)
+    formData.append('price', Math.min(...prices))
+    formData.append('stock', stocks.reduce((a, b) => a + b, 0))
+  } else {
+    formData.append('price', 0)
+    formData.append('stock', 0)
+  }
+
+  for (const file of imageFiles.value) {
+    formData.append('images', file)
+  }
+
+  if (editingProduct.value) {
+    formData.append('existingImages', JSON.stringify(existingImages.value))
+  }
+
+  if (variants.value.length > 0) {
+    const cleanVariants = variants.value
+      .filter(v => v.name && v.options.length > 0)
+      .map((v, vIdx) => ({
+        name: v.name,
+        options: v.options.filter(o => o.value).map((o, oIdx) => {
+          const opt = { value: o.value }
+          if (o.image && !o.imageFile) opt.image = o.image
+          return opt
+        })
+      }))
+      .filter(v => v.options.length > 0)
+      
+    if (cleanVariants.length > 0) {
+      formData.append('variants', JSON.stringify(cleanVariants))
+    }
+
+    variants.value.forEach((v, vIdx) => {
+      v.options.forEach((o, oIdx) => {
+        if (o.imageFile) {
+          formData.append(`optionImage_${vIdx}_${oIdx}`, o.imageFile)
+        }
+      })
+    })
+  }
+
+  const cleanCombinations = productCombinations.value.map(c => ({
+    options: c.options,
+    price: Number(c.price) || 0,
+    stock: Number(c.stock) || 0
+  }))
+  formData.append('productCombinations', JSON.stringify(cleanCombinations))
+
+  saveProductMutation.mutate(formData)
+}
+
+const editProduct = (product) => {
+  isHydratingProductForm.value = true
+  editingProduct.value = product
+  productForm.name = product.name
+  productForm.price = product.price
+  productForm.stock = product.stock
+  productForm.description = product.description
+  productForm.category = product.category
+  
+  imageFiles.value = []
+  imagePreviews.value = []
+  deletedCombinationKeys.value = []
+  
+  if (product.images && product.images.length > 0) {
+    existingImages.value = [...product.images]
+  } else if (product.image) {
+    existingImages.value = [product.image]
+  } else {
+    existingImages.value = []
+  }
+  
+  if (product.variants && product.variants.length > 0) {
+    variants.value = product.variants.map(v => ({
+      name: v.name,
+      options: v.options.map(o => ({ value: o.value, image: o.image || '', imageFile: null, imagePreview: '' }))
+    }))
+  } else {
+    variants.value = []
+  }
+  
+  if (product.productCombinations && product.productCombinations.length > 0) {
+    productCombinations.value = product.productCombinations.map(c => ({
+      options: c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {}),
+      price: c.price || 0,
+      stock: c.stock || 0
+    }))
+  } else {
+    productCombinations.value = []
+  }
+
+  const existingKeys = new Set(
+    productCombinations.value.map(c => getCombinationKey(c.options))
+  )
+  deletedCombinationKeys.value = generatedCombinations.value
+    .map(c => getCombinationKey(c))
+    .filter(key => !existingKeys.has(key))
+
+  activeTab.value = 'add-product'
+  setTimeout(() => {
+    isHydratingProductForm.value = false
+  }, 0)
+}
+
+const cancelEdit = () => {
+  editingProduct.value = null
+  isHydratingProductForm.value = false
+  imageFiles.value = []
+  imagePreviews.value = []
+  existingImages.value = []
+  variants.value = []
+  productCombinations.value = []
+  deletedCombinationKeys.value = []
+  productForm.name = ''
+  productForm.price = ''
+  productForm.stock = ''
+  productForm.description = ''
+  productForm.category = ''
+  activeTab.value = 'products'
+}
+
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files)
+  processFiles(files)
+  event.target.value = ''
+}
+
+const handleDrop = (event) => {
+  isDragOver.value = false
+  const files = Array.from(event.dataTransfer.files)
+  processFiles(files)
+}
+
+const processFiles = (files) => {
+  const remaining = 10 - totalImageCount.value
+  if (remaining <= 0) {
+    proxy.$toast?.warning('Maximum 10 images allowed', { position: 'top-right', timeout: 3000 })
+    return
+  }
+  const toProcess = files.slice(0, remaining)
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  
+  for (const file of toProcess) {
+    if (file.size > 5 * 1024 * 1024) {
+      proxy.$toast?.error(`${file.name} exceeds 5MB limit`, { position: 'top-right', timeout: 3000 })
+      continue
+    }
+    if (!allowedTypes.includes(file.type)) {
+      proxy.$toast?.error(`${file.name} is not a supported image format`, { position: 'top-right', timeout: 3000 })
+      continue
+    }
+    imageFiles.value.push(file)
+    const reader = new FileReader()
+    reader.onload = (e) => { imagePreviews.value.push(e.target.result) }
+    reader.readAsDataURL(file)
+  }
+}
+
+const removeNewImage = (index) => {
+  imageFiles.value.splice(index, 1)
+  imagePreviews.value.splice(index, 1)
+}
+
+const removeExistingImage = (index) => {
+  existingImages.value.splice(index, 1)
+}
+
+const addVariantGroup = () => {
+  variants.value.push({
+    name: '',
+    options: [{ value: '', image: '', imageFile: null, imagePreview: '' }]
+  })
+}
+
+const removeVariantGroup = (index) => {
+  variants.value.splice(index, 1)
+}
+
+const addVariantOption = (variantIndex) => {
+  variants.value[variantIndex].options.push({ value: '', image: '', imageFile: null, imagePreview: '' })
+}
+
+const removeVariantOption = (variantIndex, optionIndex) => {
+  variants.value[variantIndex].options.splice(optionIndex, 1)
+}
+
+const handleOptionImageSelect = (vIndex, oIndex, event) => {
+  const file = event.target.files[0]
+  if (!file) return
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!allowedTypes.includes(file.type)) {
+    proxy.$toast?.error('Only JPEG, PNG, WebP, GIF are supported', { position: 'top-right', timeout: 3000 })
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    proxy.$toast?.error('Image must be under 5MB', { position: 'top-right', timeout: 3000 })
+    return
+  }
+  const opt = variants.value[vIndex].options[oIndex]
+  opt.imageFile = file
+  const reader = new FileReader()
+  reader.onload = (e) => { opt.imagePreview = e.target.result }
+  reader.readAsDataURL(file)
+}
+
+const removeOptionImage = (vIndex, oIndex) => {
+  const opt = variants.value[vIndex].options[oIndex]
+  opt.image = ''
+  opt.imageFile = null
+  opt.imagePreview = ''
+}
+
+const removeCombination = (index) => {
+  const combo = productCombinations.value[index]
+  if (combo) {
+    const key = getCombinationKey(combo.options)
+    if (!deletedCombinationKeys.value.includes(key)) {
+      deletedCombinationKeys.value.push(key)
+    }
+  }
+  productCombinations.value.splice(index, 1)
+}
+
+const deleteProduct = (productId) => {
+  if (confirm('Are you sure you want to delete this product?')) {
+    deleteProductMutation.mutate(productId)
+  }
+}
+
+const updateOrderStatus = (orderId, status) => {
+  updateOrderStatusMutation.mutate({ orderId, status })
+}
+
+const acceptOrder = (orderId) => {
+  acceptOrderMutation.mutate(orderId)
+}
+
+const contactBuyer = (order) => {
+  const buyerId = order.userId
+  const buyerName = (order.shippingAddress && order.shippingAddress.fullName) || order.userEmail || 'Buyer'
+  if (!buyerId) {
+    proxy.$toast?.error('Buyer info not available.', { position: 'top-right', timeout: 2000 })
+    return
+  }
+  const firstProduct = order.products && order.products[0]
+  const productContext = firstProduct ? {
+    productId: firstProduct.productId,
+    name: firstProduct.productName || firstProduct.name || 'Product',
+    image: firstProduct.image || '',
+    price: firstProduct.price
+  } : null
+  window.dispatchEvent(new CustomEvent('open-seller-chat', {
+    detail: { sellerId: buyerId, sellerName: buyerName, productContext }
+  }))
+}
+
+const getStatusBadgeClass = (status) => {
+  const classes = {
+    pending: 'bg-warning',
+    approved: 'bg-success',
+    rejected: 'bg-danger',
+    confirmed: 'bg-info',
+    processing: 'bg-primary',
+    shipped: 'bg-secondary',
+    delivered: 'bg-success',
+    completed: 'bg-success',
+    cancelled: 'bg-danger'
+  }
+  return classes[status] || 'bg-secondary'
+}
+
+const getStatusDisplayText = (status) => {
+  const statusText = {
+    pending: 'Pending Approval',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    confirmed: 'Confirmed',
+    processing: 'Processing',
+    shipped: 'Shipping',
+    delivered: 'Delivered',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    refund_requested: 'Refund',
+    refund_approved: 'Refund Approved',
+    refund_rejected: 'Refund Rejected',
+    dispute_open: 'Dispute - Under Review',
+    dispute_resolved: 'Dispute Resolved'
+  }
+  return statusText[status] || status
+}
+
+const formatDate = (date) => new Date(date).toLocaleDateString()
+const formatCurrency = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+
+const getProductImage = (productId) => {
+  const product = myProducts.value.find(p => p._id === productId)
+  return product ? (product.image || 'https://via.placeholder.com/80') : 'https://via.placeholder.com/80'
+}
+
+const viewOrderDetails = (order) => {
+  const sellerProducts = order.products.filter(product => product.sellerId === currentUser.value?.id)
+  let details = `Order #${order.orderNumber}\n`
+  const customerName = (order.shippingAddress && order.shippingAddress.fullName) ? order.shippingAddress.fullName : order.userEmail
+  details += `Customer: ${customerName}\n`
+  details += `Status: ${order.status}\n`
+  details += `Date: ${formatDate(order.createdAt)}\n\n`
+  details += `Your Products:\n`
+  
+  sellerProducts.forEach(product => {
+    details += `• ${product.productName} - Qty: ${product.quantity} - $${(product.price * product.quantity).toFixed(2)}\n`
+  })
+  
+  proxy.$toast?.info('Order Details', { description: details, duration: 6000 })
+}
+
+const openRefundResponseModal = (order, action) => {
+  refundResponseOrder.value = order
+  refundResponseAction.value = action
+  refundResponseNote.value = ''
+  showRefundResponseModal.value = true
+}
+
+const closeRefundResponseModal = () => {
+  showRefundResponseModal.value = false
+  refundResponseOrder.value = null
+  refundResponseAction.value = ''
+  refundResponseNote.value = ''
+}
+
+const submitRefundResponse = () => {
+  submitRefundResponseMutation.mutate()
 }
 </script>
 

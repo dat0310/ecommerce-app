@@ -49,6 +49,15 @@ class ProductController {
         }
     }
 
+    async getShopProducts(req, res) {
+        try {
+            const data = await productService.getShopPublicProducts(req.params.sellerId);
+            res.json(data);
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    }
+
     async createProduct(req, res) {
         try {
             const productData = req.body;

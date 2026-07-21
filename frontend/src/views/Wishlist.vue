@@ -77,45 +77,44 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'Wishlist',
-  data() {
-    return {
-      wishlistItems: []
-    }
-  },
-  mounted() {
-    this.loadWishlist()
-    window.addEventListener('wishlist-updated', this.loadWishlist)
-  },
-  beforeUnmount() {
-    window.removeEventListener('wishlist-updated', this.loadWishlist)
-  },
-  methods: {
-    loadWishlist() {
-      const stored = localStorage.getItem('wishlist')
-      this.wishlistItems = stored ? JSON.parse(stored) : []
-    },
-    removeFromWishlist(productId) {
-      const next = this.wishlistItems.filter(item => item._id !== productId)
-      localStorage.setItem('wishlist', JSON.stringify(next))
-      this.wishlistItems = next
-      window.dispatchEvent(new Event('wishlist-updated'))
-      this.$toast && this.$toast.success('Item removed from wishlist', {
-        position: 'top-right',
-        timeout: 2000
-      })
-    },
-    truncateText(text, length) {
-      if (!text) return ''
-      if (text.length > length) {
-        return text.substring(0, length) + '...'
-      }
-      return text
-    }
-  }
+<script setup>
+import { ref, onMounted, onBeforeUnmount, getCurrentInstance } from 'vue'
+
+const { proxy } = getCurrentInstance()
+const wishlistItems = ref([])
+
+const loadWishlist = () => {
+  const stored = localStorage.getItem('wishlist')
+  wishlistItems.value = stored ? JSON.parse(stored) : []
 }
+
+const removeFromWishlist = (productId) => {
+  const next = wishlistItems.value.filter(item => item._id !== productId)
+  localStorage.setItem('wishlist', JSON.stringify(next))
+  wishlistItems.value = next
+  window.dispatchEvent(new Event('wishlist-updated'))
+  proxy.$toast && proxy.$toast.success('Item removed from wishlist', {
+    position: 'top-right',
+    timeout: 2000
+  })
+}
+
+const truncateText = (text, length) => {
+  if (!text) return ''
+  if (text.length > length) {
+    return text.substring(0, length) + '...'
+  }
+  return text
+}
+
+onMounted(() => {
+  loadWishlist()
+  window.addEventListener('wishlist-updated', loadWishlist)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('wishlist-updated', loadWishlist)
+})
 </script>
 
 <style scoped>

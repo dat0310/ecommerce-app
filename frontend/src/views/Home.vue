@@ -212,286 +212,268 @@
   </div>
 </template>
 
-<script>
-import { mapActions, mapGetters } from 'vuex'
+<script setup>
+import { ref, computed, getCurrentInstance, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import { useProducts } from '../composables/useProducts'
+import { useAddToCart } from '../composables/useCart'
 
-export default {
-  name: 'Home',
-  data() {
-    return {
-      loading: true,
-      products: [],
-      selectedCategory: '',
-      sortBy: 'name',
-      currentPage: 1,
-      itemsPerPage: 12,
-      wishlistIds: [],
-      categories: [
-        { 
-          name: 'Laptop', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="12" width="48" height="32" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <rect x="12" y="16" width="40" height="24" rx="1" fill="currentColor" opacity="0.15"/>
-            <path d="M4 48h56c0 2.2-1.8 4-4 4H8c-2.2 0-4-1.8-4-4z" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <circle cx="32" cy="28" r="6" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.3"/>
-            <path d="M29 28l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>`
-        },
-        { 
-          name: 'Mobile', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="16" y="6" width="32" height="52" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <rect x="20" y="12" width="24" height="36" rx="1" fill="currentColor" opacity="0.15"/>
-            <circle cx="32" cy="54" r="3" fill="currentColor"/>
-            <rect x="26" y="8" width="12" height="2" rx="1" fill="currentColor" opacity="0.5"/>
-            <path d="M24 20h16M24 26h12M24 32h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
-          </svg>`
-        },
-        { 
-          name: 'Headphone', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 36V32c0-11 9-20 20-20s20 9 20 20v4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <rect x="8" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
-            <rect x="46" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
-            <ellipse cx="13" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
-            <ellipse cx="51" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
-            <path d="M28 58h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>`
-        },
-        { 
-          name: 'Speaker', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="14" y="6" width="36" height="52" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <circle cx="32" cy="38" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
-            <circle cx="32" cy="38" r="6" fill="currentColor" opacity="0.4"/>
-            <circle cx="32" cy="38" r="2" fill="currentColor"/>
-            <circle cx="32" cy="16" r="5" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
-            <circle cx="32" cy="16" r="2" fill="currentColor" opacity="0.5"/>
-          </svg>`
-        },
-        { 
-          name: 'Watch', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="4" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
-            <rect x="20" y="48" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
-            <rect x="16" y="14" width="32" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <circle cx="32" cy="32" r="12" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.15"/>
-            <path d="M32 24v8l6 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="32" cy="32" r="2" fill="currentColor"/>
-          </svg>`
-        },
-        { 
-          name: 'Camera', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22 16l3-6h14l3 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <rect x="6" y="16" width="52" height="38" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <circle cx="32" cy="34" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
-            <circle cx="32" cy="34" r="7" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
-            <circle cx="32" cy="34" r="3" fill="currentColor" opacity="0.5"/>
-            <circle cx="50" cy="24" r="3" fill="currentColor" opacity="0.4"/>
-            <rect x="10" y="22" width="8" height="4" rx="1" fill="currentColor" opacity="0.3"/>
-          </svg>`
-        },
-        { 
-          name: 'Appliances', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="12" y="8" width="40" height="48" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <rect x="16" y="12" width="32" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="12" y1="40" x2="52" y2="40" stroke="currentColor" stroke-width="2"/>
-            <circle cx="22" cy="48" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="32" cy="48" r="3" fill="currentColor" opacity="0.4"/>
-            <circle cx="42" cy="48" r="3" fill="currentColor" opacity="0.4"/>
-            <path d="M26 22l4 6h-8l4-6zM32 26v4M38 24v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
-          </svg>`
-        },
-        { 
-          name: 'Computing & Displays', 
-          svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="6" y="8" width="52" height="36" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
-            <rect x="10" y="12" width="44" height="28" rx="1" fill="currentColor" opacity="0.15"/>
-            <path d="M26 44v8M38 44v8M20 52h24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="32" cy="26" r="8" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
-            <path d="M28 26l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>`
-        }
-      ]
-    }
+const route = useRoute()
+const router = useRouter()
+const store = useStore()
+const { proxy } = getCurrentInstance()
+
+const { data: products, isLoading: loading } = useProducts()
+const addToCartMutation = useAddToCart()
+
+const searchQuery = computed(() => store.getters.searchQuery)
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+
+const selectedCategory = ref(route.query.category || '')
+const sortBy = ref('name')
+const currentPage = ref(1)
+const itemsPerPage = 12
+const wishlistIds = ref([])
+
+const categories = [
+  { 
+    name: 'Laptop', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="8" y="12" width="48" height="32" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <rect x="12" y="16" width="40" height="24" rx="1" fill="currentColor" opacity="0.15"/>
+      <path d="M4 48h56c0 2.2-1.8 4-4 4H8c-2.2 0-4-1.8-4-4z" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <circle cx="32" cy="28" r="6" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.3"/>
+      <path d="M29 28l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`
   },
-  computed: {
-    ...mapGetters(['searchQuery', 'isAuthenticated']),
-    filteredProducts() {
-      let filtered = this.products
-
-      if (this.selectedCategory) {
-        filtered = filtered.filter(product => product.category === this.selectedCategory)
-      }
-
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(product =>
-          product.name.toLowerCase().includes(query)
-        )
-      }
-
-      filtered = this.sortProducts(filtered)
-
-      return filtered
-    },
-    paginatedProducts() {
-      const start = (this.currentPage - 1) * this.itemsPerPage
-      const end = start + this.itemsPerPage
-      return this.filteredProducts.slice(start, end)
-    },
-    totalPages() {
-      return Math.ceil(this.filteredProducts.length / this.itemsPerPage)
-    },
-    visiblePages() {
-      const pages = []
-      const start = Math.max(1, this.currentPage - 2)
-      const end = Math.min(this.totalPages, this.currentPage + 2)
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i)
-      }
-      return pages
-    }
+  { 
+    name: 'Mobile', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="16" y="6" width="32" height="52" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <rect x="20" y="12" width="24" height="36" rx="1" fill="currentColor" opacity="0.15"/>
+      <circle cx="32" cy="54" r="3" fill="currentColor"/>
+      <rect x="26" y="8" width="12" height="2" rx="1" fill="currentColor" opacity="0.5"/>
+      <path d="M24 20h16M24 26h12M24 32h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+    </svg>`
   },
-  async created() {
-    if (this.$route.query.category) {
-      this.selectedCategory = this.$route.query.category
-    }
-    if (this.$route.query.q) {
-      this.searchQuery = this.$route.query.q
-    }
-    try {
-      const response = await this.$http.get('/api/products')
-      this.products = response.data
-      this.loadWishlist()
-    } catch (error) {
-      console.error('Error fetching products:', error)
-      this.$toast.error('Failed to load products. Please try again later.', {
-        position: 'top-right',
-        timeout: 3000
-      })
-    } finally {
-      this.loading = false
-    }
+  { 
+    name: 'Headphone', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 36V32c0-11 9-20 20-20s20 9 20 20v4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <rect x="8" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+      <rect x="46" y="34" width="10" height="18" rx="3" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+      <ellipse cx="13" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
+      <ellipse cx="51" cy="43" rx="3" ry="5" fill="currentColor" opacity="0.3"/>
+      <path d="M28 58h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>`
   },
-  methods: {
-    ...mapActions(['addToCart', 'updateSearchQuery']),
-    goToCategory(category) {
-      if (this.selectedCategory === category) {
-        this.selectedCategory = ''
-        this.$router.replace({ query: { ...this.$route.query, category: undefined } }).catch(() => {})
-      } else {
-        this.selectedCategory = category
-        this.currentPage = 1
-        this.$router.replace({ query: { ...this.$route.query, category } }).catch(() => {})
-      }
-    },
-    clearCategory() {
-      this.selectedCategory = ''
-      this.currentPage = 1
-      const query = { ...this.$route.query }
-      delete query.category
-      this.$router.replace({ query }).catch(() => {})
-    },
-    loadWishlist() {
-      try {
-        const raw = localStorage.getItem('wishlist')
-        const items = raw ? JSON.parse(raw) : []
-        this.wishlistIds = items.map(item => item._id)
-      } catch (_) {
-        this.wishlistIds = []
-      }
-    },
-    saveWishlist(items) {
-      localStorage.setItem('wishlist', JSON.stringify(items))
-    },
-    isWishlisted(productId) {
-      return this.wishlistIds.includes(productId)
-    },
-    toggleWishlist(product) {
-      if (!product) return
-      let items = []
-      try {
-        items = JSON.parse(localStorage.getItem('wishlist') || '[]')
-      } catch (_) {
-        items = []
-      }
-      const index = items.findIndex(it => it._id === product._id)
-      if (index >= 0) {
-        items.splice(index, 1)
-        this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
-      } else {
-        const minimal = { _id: product._id, name: product.name, price: product.price, image: (product.images && product.images[0]) || product.image || '' }
-        items.push(minimal)
-        this.$toast && this.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
-      }
-      this.saveWishlist(items)
-      this.wishlistIds = items.map(it => it._id)
-      window.dispatchEvent(new Event('wishlist-updated'))
-    },
-    truncateText(text, length) {
-      if (!text) return ''
-      if (text.length > length) {
-        return text.substring(0, length) + '...'
-      }
-      return text
-    },
-    getDisplayPrice(product) {
-      if (product.productCombinations && product.productCombinations.length > 0) {
-        const prices = product.productCombinations.map(c => c.price)
-        const minPrice = Math.min(...prices)
-        const maxPrice = Math.max(...prices)
-        if (minPrice === maxPrice) return `$${minPrice}`
-        return `$${minPrice} - $${maxPrice}`
-      }
-      return `$${product.price}`
-    },
-    sortProducts(products) {
-      const sorted = [...products]
+  { 
+    name: 'Speaker', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="14" y="6" width="36" height="52" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <circle cx="32" cy="38" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+      <circle cx="32" cy="38" r="6" fill="currentColor" opacity="0.4"/>
+      <circle cx="32" cy="38" r="2" fill="currentColor"/>
+      <circle cx="32" cy="16" r="5" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+      <circle cx="32" cy="16" r="2" fill="currentColor" opacity="0.5"/>
+    </svg>`
+  },
+  { 
+    name: 'Watch', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="4" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
+      <rect x="20" y="48" width="24" height="12" rx="2" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.1"/>
+      <rect x="16" y="14" width="32" height="36" rx="6" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <circle cx="32" cy="32" r="12" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.15"/>
+      <path d="M32 24v8l6 4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="2" fill="currentColor"/>
+    </svg>`
+  },
+  { 
+    name: 'Camera', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22 16l3-6h14l3 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <rect x="6" y="16" width="52" height="38" rx="4" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <circle cx="32" cy="34" r="12" stroke="currentColor" stroke-width="2.5" fill="currentColor" opacity="0.15"/>
+      <circle cx="32" cy="34" r="7" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+      <circle cx="32" cy="34" r="3" fill="currentColor" opacity="0.5"/>
+      <circle cx="50" cy="24" r="3" fill="currentColor" opacity="0.4"/>
+      <rect x="10" y="22" width="8" height="4" rx="1" fill="currentColor" opacity="0.3"/>
+    </svg>`
+  },
+  { 
+    name: 'Appliances', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="12" y="8" width="40" height="48" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <rect x="16" y="12" width="32" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" stroke-width="1.5"/>
+      <line x1="12" y1="40" x2="52" y2="40" stroke="currentColor" stroke-width="2"/>
+      <circle cx="22" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+      <circle cx="32" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+      <circle cx="42" cy="48" r="3" fill="currentColor" opacity="0.4"/>
+      <path d="M26 22l4 6h-8l4-6zM32 26v4M38 24v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+    </svg>`
+  },
+  { 
+    name: 'Computing & Displays', 
+    svg: `<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="6" y="8" width="52" height="36" rx="3" stroke="currentColor" stroke-width="2.5" fill="none"/>
+      <rect x="10" y="12" width="44" height="28" rx="1" fill="currentColor" opacity="0.15"/>
+      <path d="M26 44v8M38 44v8M20 52h24" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="32" cy="26" r="8" stroke="currentColor" stroke-width="2" fill="currentColor" opacity="0.2"/>
+      <path d="M28 26l3 3 5-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`
+  }
+]
 
-      switch (this.sortBy) {
-        case 'price-low':
-          return sorted.sort((a, b) => a.price - b.price)
-        case 'price-high':
-          return sorted.sort((a, b) => b.price - a.price)
-        case 'newest':
-          return sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-        case 'name':
-        default:
-          return sorted.sort((a, b) => a.name.localeCompare(b.name))
-      }
-    },
-    clearFilters() {
-      this.selectedCategory = ''
-      this.sortBy = 'name'
-      this.currentPage = 1
-      if (this.$route.query.q || this.$route.query.category) {
-        this.$router.push({ name: 'Home' }).catch(() => {})
-      }
-    }
-  },
-  watch: {
-    '$route.query.category'(newCategory) {
-      this.selectedCategory = newCategory || ''
-    },
-    '$route.query.q'(newQuery) {
-      this.searchQuery = newQuery || ''
-    },
-    selectedCategory() {
-      this.currentPage = 1
-    },
-    searchQuery() {
-      this.currentPage = 1
-    },
-    sortBy() {
-      this.currentPage = 1
-    }
+const sortProducts = (items) => {
+  const sorted = [...items]
+  switch (sortBy.value) {
+    case 'price-low':
+      return sorted.sort((a, b) => a.price - b.price)
+    case 'price-high':
+      return sorted.sort((a, b) => b.price - a.price)
+    case 'newest':
+      return sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    case 'name':
+    default:
+      return sorted.sort((a, b) => a.name.localeCompare(b.name))
   }
 }
+
+const filteredProducts = computed(() => {
+  let filtered = products.value || []
+
+  if (selectedCategory.value) {
+    filtered = filtered.filter(product => product.category === selectedCategory.value)
+  }
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(product =>
+      product.name.toLowerCase().includes(query)
+    )
+  }
+
+  return sortProducts(filtered)
+})
+
+const paginatedProducts = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredProducts.value.slice(start, end)
+})
+
+const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage))
+
+const visiblePages = computed(() => {
+  const pages = []
+  const start = Math.max(1, currentPage.value - 2)
+  const end = Math.min(totalPages.value, currentPage.value + 2)
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  return pages
+})
+
+const loadWishlist = () => {
+  try {
+    const raw = localStorage.getItem('wishlist')
+    const items = raw ? JSON.parse(raw) : []
+    wishlistIds.value = items.map(item => item._id)
+  } catch (_) {
+    wishlistIds.value = []
+  }
+}
+
+const saveWishlist = (items) => {
+  localStorage.setItem('wishlist', JSON.stringify(items))
+}
+
+const isWishlisted = (productId) => wishlistIds.value.includes(productId)
+
+const toggleWishlist = (product) => {
+  if (!product) return
+  let items = []
+  try {
+    items = JSON.parse(localStorage.getItem('wishlist') || '[]')
+  } catch (_) {
+    items = []
+  }
+  const index = items.findIndex(it => it._id === product._id)
+  if (index >= 0) {
+    items.splice(index, 1)
+    proxy.$toast && proxy.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
+  } else {
+    const minimal = { _id: product._id, name: product.name, price: product.price, image: (product.images && product.images[0]) || product.image || '' }
+    items.push(minimal)
+    proxy.$toast && proxy.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
+  }
+  saveWishlist(items)
+  wishlistIds.value = items.map(it => it._id)
+  window.dispatchEvent(new Event('wishlist-updated'))
+}
+
+const truncateText = (text, length) => {
+  if (!text) return ''
+  if (text.length > length) return text.substring(0, length) + '...'
+  return text
+}
+
+const getDisplayPrice = (product) => {
+  if (product.productCombinations && product.productCombinations.length > 0) {
+    const prices = product.productCombinations.map(c => c.price)
+    const minPrice = Math.min(...prices)
+    const maxPrice = Math.max(...prices)
+    if (minPrice === maxPrice) return `$${minPrice}`
+    return `$${minPrice} - $${maxPrice}`
+  }
+  return `$${product.price}`
+}
+
+const goToCategory = (category) => {
+  if (selectedCategory.value === category) {
+    selectedCategory.value = ''
+    router.replace({ query: { ...route.query, category: undefined } }).catch(() => {})
+  } else {
+    selectedCategory.value = category
+    currentPage.value = 1
+    router.replace({ query: { ...route.query, category } }).catch(() => {})
+  }
+}
+
+const clearCategory = () => {
+  selectedCategory.value = ''
+  currentPage.value = 1
+  const query = { ...route.query }
+  delete query.category
+  router.replace({ query }).catch(() => {})
+}
+
+const clearFilters = () => {
+  selectedCategory.value = ''
+  sortBy.value = 'name'
+  currentPage.value = 1
+  if (route.query.q || route.query.category) {
+    router.push({ name: 'Home' }).catch(() => {})
+  }
+}
+
+// Load wishlist on mount
+loadWishlist()
+
+// Watchers
+watch(() => route.query.category, (newCategory) => {
+  selectedCategory.value = newCategory || ''
+})
+watch(() => route.query.q, (newQuery) => {
+  if (newQuery) store.dispatch('updateSearchQuery', newQuery)
+})
+watch(selectedCategory, () => { currentPage.value = 1 })
+watch(searchQuery, () => { currentPage.value = 1 })
+watch(sortBy, () => { currentPage.value = 1 })
 </script>
+
 
 <style scoped>
 /* ═══════════════════════════════════════════════════════════════════════════

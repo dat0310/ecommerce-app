@@ -218,377 +218,376 @@
   </div>
 </template>
 
-<script>
-import { nextTick } from 'vue'
-import { mapGetters } from 'vuex'
+<script setup>
+import { ref, computed, watch, onMounted, nextTick, getCurrentInstance } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
 import axios from 'axios'
 import { loadStripe } from '@stripe/stripe-js'
+import { useCart, useRemoveCartItem } from '../composables/useCart'
 
-const stripePublishableKey = process.env.VUE_APP_STRIPE_PUBLISHABLE || '';
-// If no publishable key is provided, keep stripePromise as null so callers can detect missing configuration.
-let stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
+const route = useRoute()
+const router = useRouter()
+const store = useStore()
+const { proxy } = getCurrentInstance()
 
-export default {
-  name: 'Checkout',
-  data() {
-    return {
-      paymentMethod: 'cash_on_delivery',
-      selectedAddressId: null,
-      shippingAddress: {
-        fullName: '',
-        phoneNumber: '',
-        cityDistrictWard: '',
-        streetBuildingHouse: '',
-        isDefault: false
+const stripePublishableKey = process.env.VUE_APP_STRIPE_PUBLISHABLE || ''
+let stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null
+
+const { cartItems } = useCart()
+const removeCartItemMutation = useRemoveCartItem()
+
+const paymentMethod = ref('cash_on_delivery')
+const selectedAddressId = ref(null)
+const shippingAddress = ref({
+  fullName: '',
+  phoneNumber: '',
+  cityDistrictWard: '',
+  streetBuildingHouse: '',
+  isDefault: false
+})
+const stripe = ref(null)
+const cardElement = ref(null)
+const voucherCode = ref('')
+const voucherApplied = ref(false)
+const voucherError = ref('')
+const appliedVoucher = ref(null)
+const useCoins = ref(false)
+const coinsToUse = ref(0)
+const availableCoins = ref(0)
+const isPlacingOrder = ref(false)
+
+const currentUser = computed(() => store.getters.currentUser)
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+
+const selectedIds = computed(() => {
+  const rawIds = Array.isArray(route.query.items)
+    ? route.query.items.join(',')
+    : route.query.items
+  if (!rawIds) return []
+  return rawIds
+    .split(',')
+    .map(id => decodeURIComponent(id))
+    .filter(Boolean)
+})
+
+const selectedItems = computed(() => {
+  return cartItems.value.filter(item => selectedIds.value.includes(item.cartItemKey))
+})
+
+const shippingCost = computed(() => 5.99)
+
+const subtotal = computed(() => {
+  return selectedItems.value.reduce((total, item) => total + (item.price * item.quantity), 0)
+})
+
+const discountAmount = computed(() => {
+  if (!voucherApplied.value || !appliedVoucher.value) return 0
+  if (appliedVoucher.value.discountType === 'percentage') {
+    return subtotal.value * (appliedVoucher.value.discountValue / 100)
+  } else {
+    return Math.min(appliedVoucher.value.discountValue, subtotal.value)
+  }
+})
+
+const totalAmount = computed(() => {
+  return Math.max(0, subtotal.value + shippingCost.value - discountAmount.value - coinDiscountAmount.value)
+})
+
+const coinDiscountAmount = computed(() => {
+  if (!useCoins.value || coinsToUse.value <= 0) return 0
+  return Math.min(coinsToUse.value / 1000, subtotal.value + shippingCost.value - discountAmount.value)
+})
+
+const maxCoinsUsable = computed(() => {
+  const maxByBalance = availableCoins.value
+  const maxByTotal = Math.ceil((subtotal.value + shippingCost.value - discountAmount.value) * 1000)
+  return Math.min(maxByBalance, maxByTotal)
+})
+
+const userAddresses = computed(() => {
+  return currentUser.value?.addresses || []
+})
+
+const canPlaceOrder = computed(() => {
+  if (paymentMethod.value === 'stripe') {
+    return selectedAddressId.value && cardElement.value && isAuthenticated.value
+  }
+  return selectedAddressId.value && paymentMethod.value && isAuthenticated.value
+})
+
+const setupStripe = async () => {
+  if (cardElement.value) return
+  if (!stripePublishableKey) {
+    proxy.$toast.error('Stripe publishable key is not configured. Please set VUE_APP_STRIPE_PUBLISHABLE.', { position: 'top-right' })
+    return
+  }
+  
+  try {
+    stripe.value = await stripePromise
+  } catch (err) {
+    proxy.$toast.error('Failed to initialize Stripe. Check the publishable key.', { position: 'top-right' })
+    console.error('Stripe initialization error:', err)
+    return
+  }
+
+  if (!stripe.value || typeof stripe.value.elements !== 'function') {
+    proxy.$toast.error('Stripe is not available. Please verify your publishable key.', { position: 'top-right' })
+    return
+  }
+
+  const elements = stripe.value.elements()
+  cardElement.value = elements.create('card', {
+    style: {
+      base: {
+        color: '#32325d',
+        fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+        fontSmoothing: 'antialiased',
+        fontSize: '16px',
+        '::placeholder': {
+          color: '#aab7c4'
+        }
       },
-      stripe: null,
-      cardElement: null,
-      voucherCode: '',
-      voucherApplied: false,
-      voucherError: '',
-      appliedVoucher: null,
-      // Coin discount
-      useCoins: false,
-      coinsToUse: 0,
-      availableCoins: 0,
-      isPlacingOrder: false
+      invalid: {
+        color: '#fa755a',
+        iconColor: '#fa755a'
+      }
     }
-  },
-  computed: {
-    ...mapGetters(['cartItems', 'currentUser', 'isAuthenticated']),
-    selectedIds() {
-      const rawIds = Array.isArray(this.$route.query.items)
-        ? this.$route.query.items.join(',')
-        : this.$route.query.items
-      if (!rawIds) return []
-      return rawIds
-        .split(',')
-        .map(id => decodeURIComponent(id))
-        .filter(Boolean)
-    },
-    selectedItems() {
-      return this.cartItems.filter(item => this.selectedIds.includes(item.cartItemKey))
-    },
-    shippingCost() {
-      return 5.99
-    },
-    subtotal() {
-      return this.selectedItems.reduce((total, item) => total + (item.price * item.quantity), 0)
-    },
-    discountAmount() {
-      if (!this.voucherApplied || !this.appliedVoucher) return 0
-      if (this.appliedVoucher.discountType === 'percentage') {
-        return this.subtotal * (this.appliedVoucher.discountValue / 100)
+  })
+
+  await nextTick()
+  if (document.getElementById('card-element')) {
+    cardElement.value.mount('#card-element')
+    cardElement.value.on('change', (event) => {
+      const displayError = document.getElementById('card-errors')
+      if (event.error) {
+        displayError.textContent = event.error.message
       } else {
-        return Math.min(this.appliedVoucher.discountValue, this.subtotal)
+        displayError.textContent = ''
       }
-    },
-    totalAmount() {
-      return Math.max(0, this.subtotal + this.shippingCost - this.discountAmount - this.coinDiscountAmount)
-    },
-    coinDiscountAmount() {
-      if (!this.useCoins || this.coinsToUse <= 0) return 0
-      return Math.min(this.coinsToUse / 1000, this.subtotal + this.shippingCost - this.discountAmount)
-    },
-    maxCoinsUsable() {
-      const maxByBalance = this.availableCoins
-      const maxByTotal = Math.ceil((this.subtotal + this.shippingCost - this.discountAmount) * 1000)
-      return Math.min(maxByBalance, maxByTotal)
-    },
-    userAddresses() {
-      return this.currentUser?.addresses || []
-    },
-    canPlaceOrder() {
-      if (this.paymentMethod === 'stripe') {
-        return this.selectedAddressId && this.cardElement && this.isAuthenticated;
-      }
-      return this.selectedAddressId && this.paymentMethod && this.isAuthenticated;
+    })
+  }
+}
+
+watch(selectedAddressId, (newVal) => {
+  if (newVal) {
+    const address = userAddresses.value.find(a => a._id === newVal)
+    if (address) {
+      shippingAddress.value = { ...address }
     }
-  },
-  watch: {
-    selectedAddressId(newVal) {
-      if (newVal) {
-        const address = this.userAddresses.find(a => a._id === newVal)
-        if (address) {
-          this.shippingAddress = { ...address }
-        }
-      } else {
-        this.shippingAddress = {
-          fullName: '',
-          phoneNumber: '',
-          cityDistrictWard: '',
-          streetBuildingHouse: '',
-          isDefault: false
-        }
-      }
-    },
-    async paymentMethod(newVal) {
-      if (newVal === 'stripe' && !this.stripe) {
-        await this.setupStripe();
-      }
+  } else {
+    shippingAddress.value = {
+      fullName: '',
+      phoneNumber: '',
+      cityDistrictWard: '',
+      streetBuildingHouse: '',
+      isDefault: false
     }
-  },
-  async mounted() {
-    // Check if user is authenticated
-    if (!this.isAuthenticated) {
-      this.$toast.warning('Please log in to proceed with checkout.', {
-        position: 'top-right',
-      })
-      this.$router.push('/login?redirect=checkout')
-      return
+  }
+})
+
+watch(paymentMethod, async (newVal) => {
+  if (newVal === 'stripe' && !stripe.value) {
+    await setupStripe()
+  }
+})
+
+const loadCoinBalance = async () => {
+  try {
+    const response = await axios.get('/api/coins', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    availableCoins.value = response.data.coins || 0
+  } catch (error) {
+    console.error('Failed to load coin balance:', error)
+    availableCoins.value = 0
+  }
+}
+
+onMounted(async () => {
+  if (!isAuthenticated.value) {
+    proxy.$toast.warning('Please log in to proceed with checkout.', {
+      position: 'top-right',
+    })
+    router.push('/login?redirect=checkout')
+    return
+  }
+
+  const defaultAddress = userAddresses.value.find(a => a.isDefault)
+  if (defaultAddress) {
+    selectedAddressId.value = defaultAddress._id
+  }
+
+  if (paymentMethod.value === 'stripe') {
+    await setupStripe()
+  }
+
+  await loadCoinBalance()
+})
+
+const createOrder = async (paymentIntentId = null, coinsAlreadyDeducted = false) => {
+  try {
+    const orderData = {
+      products: selectedItems.value.map(item => ({
+        productId: item._id,
+        productName: item.name,
+        sellerId: item.sellerId,
+        sellerName: item.sellerName || 'Unknown Shop',
+        quantity: item.quantity,
+        price: item.price || 0,
+        image: item.image,
+        selectedOptions: item.selectedOptions || {}
+      })),
+      totalAmount: totalAmount.value || 0,
+      shippingFee: shippingCost.value || 0,
+      shippingAddress: shippingAddress.value,
+      paymentMethod: paymentMethod.value,
+      paymentStatus: paymentMethod.value === 'cash_on_delivery' ? 'pending' : 'completed',
+      paymentIntentId: paymentIntentId,
+      coinsUsed: (useCoins.value ? coinsToUse.value : 0) || 0,
+      coinsAlreadyDeducted: coinsAlreadyDeducted || false,
+      voucher: appliedVoucher.value ? {
+        code: appliedVoucher.value.code,
+        discountAmount: discountAmount.value || 0
+      } : null
     }
 
-    // Set default address if available
-    const defaultAddress = this.userAddresses.find(a => a.isDefault)
-    if (defaultAddress) {
-      this.selectedAddressId = defaultAddress._id
-    }
-
-    if (this.paymentMethod === 'stripe') {
-      await this.setupStripe();
-    }
-
-    // Load coin balance
-    await this.loadCoinBalance();
-  },
-  methods: {
-    async setupStripe() {
-      if (this.cardElement) return;
-      // Ensure publishable key is configured
-      if (!stripePublishableKey) {
-        this.$toast.error('Stripe publishable key is not configured. Please set VUE_APP_STRIPE_PUBLISHABLE.', { position: 'top-right' });
-        return;
+    const token = localStorage.getItem('token')
+    await axios.post('/api/orders', orderData, {
+      headers: {
+        Authorization: `Bearer ${token}`
       }
-      
-      // Await the loader promise and ensure it resolved to a Stripe instance
+    })
+    proxy.$toast.success('Order placed successfully!', { position: 'top-right', timeout: 5000, closeOnClick: false })
+
+    await Promise.all(selectedItems.value.map(item =>
+      removeCartItemMutation.mutateAsync({ productId: item._id, selectedOptions: item.selectedOptions }).catch(() => null)
+    ))
+
+    router.push('/profile')
+  } catch (error) {
+    if (error.response?.status !== 401) {
+      proxy.$toast.error(error.response?.data?.message || 'Failed to place order', { position: 'top-right' })
+    }
+  }
+}
+
+const handleCashOnDelivery = async () => {
+  await createOrder()
+}
+
+const applyVoucher = async () => {
+  if (!voucherCode.value.trim()) return
+
+  try {
+    const token = localStorage.getItem('token')
+    const response = await axios.post('/api/vouchers/apply', {
+      code: voucherCode.value.trim()
+    }, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    appliedVoucher.value = response.data.voucher
+    voucherApplied.value = true
+    voucherError.value = ''
+    proxy.$toast.success('Voucher applied successfully!', { position: 'top-right' })
+  } catch (error) {
+    voucherError.value = error.response?.data?.message || 'Invalid voucher code'
+    voucherApplied.value = false
+    appliedVoucher.value = null
+  }
+}
+
+const handleStripePayment = async () => {
+  if (!stripe.value || !cardElement.value) {
+    proxy.$toast.error('Stripe is not ready yet.', { position: 'top-right' })
+    return
+  }
+
+  const token = localStorage.getItem('token')
+  
+  if (!token) {
+    proxy.$toast.error('Please log in to complete your purchase.', { position: 'top-right' })
+    router.push('/login')
+    return
+  }
+  
+  let coinsDeducted = false
+  const coinsToDeduct = useCoins.value ? coinsToUse.value : 0
+
+  try {
+    if (coinsToDeduct > 0) {
       try {
-        this.stripe = await stripePromise;
-      } catch (err) {
-        this.$toast.error('Failed to initialize Stripe. Check the publishable key.', { position: 'top-right' });
-        console.error('Stripe initialization error:', err);
-        return;
-      }
-
-      if (!this.stripe || typeof this.stripe.elements !== 'function') {
-        this.$toast.error('Stripe is not available. Please verify your publishable key.', { position: 'top-right' });
-        return;
-      }
-
-      const elements = this.stripe.elements();
-      this.cardElement = elements.create('card', {
-        style: {
-          base: {
-            color: '#32325d',
-            fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-            fontSmoothing: 'antialiased',
-            fontSize: '16px',
-            '::placeholder': {
-              color: '#aab7c4'
-            }
-          },
-          invalid: {
-            color: '#fa755a',
-            iconColor: '#fa755a'
-          }
-        }
-      });
-
-      await nextTick()
-      if (document.getElementById('card-element')) {
-        this.cardElement.mount('#card-element');
-        this.cardElement.on('change', (event) => {
-          const displayError = document.getElementById('card-errors');
-          if (event.error) {
-            displayError.textContent = event.error.message;
-          } else {
-            displayError.textContent = '';
-          }
-        });
-      }
-    },
-    async placeOrder() {
-      if (this.isPlacingOrder) return;
-      this.isPlacingOrder = true;
-      try {
-        if (this.paymentMethod === 'stripe') {
-          await this.handleStripePayment();
-        } else {
-          await this.handleCashOnDelivery();
-        }
-      } finally {
-        this.isPlacingOrder = false;
-      }
-    },
-    async createOrder(paymentIntentId = null, coinsAlreadyDeducted = false) {
-       try {
-        const orderData = {
-          products: this.selectedItems.map(item => ({
-            productId: item._id,
-            productName: item.name,
-            sellerId: item.sellerId,
-            sellerName: item.sellerName || 'Unknown Shop',
-            quantity: item.quantity,
-            price: item.price || 0,
-            image: item.image,
-            selectedOptions: item.selectedOptions || {}
-          })),
-          totalAmount: this.totalAmount || 0,
-          shippingFee: this.shippingCost || 0,
-          shippingAddress: this.shippingAddress,
-          paymentMethod: this.paymentMethod,
-          paymentStatus: this.paymentMethod === 'cash_on_delivery' ? 'pending' : 'completed',
-          paymentIntentId: paymentIntentId,
-          coinsUsed: (this.useCoins ? this.coinsToUse : 0) || 0,
-          coinsAlreadyDeducted: coinsAlreadyDeducted || false,
-          voucher: this.appliedVoucher ? {
-            code: this.appliedVoucher.code,
-            discountAmount: this.discountAmount || 0
-          } : null
-        }
-
-        const token = localStorage.getItem('token');
-        await axios.post('/api/orders', orderData, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        })
-        this.$toast.success('Order placed successfully!', { position: 'top-right', timeout: 5000, closeOnClick: false });
-
-        // Remove placed items from cart in parallel to reduce waiting time
-        await Promise.all(this.selectedItems.map(item =>
-          this.$store.dispatch('removeFromCart', item).catch(() => null)
-        ))
-
-        // Redirect to profile
-        this.$router.push('/profile');
-      } catch (error) {
-        // 401 errors are now handled globally by the axios interceptor
-        // Only handle other errors here
-        if (error.response?.status !== 401) {
-          this.$toast.error(error.response?.data?.message || 'Failed to place order', { position: 'top-right' });
-        }
-      }
-    },
-    async handleCashOnDelivery() {
-      await this.createOrder();
-    },
-    async applyVoucher() {
-      if (!this.voucherCode.trim()) return
-
-      try {
-        const token = localStorage.getItem('token')
-        const response = await axios.post('/api/vouchers/apply', {
-          code: this.voucherCode.trim()
-        }, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        })
-
-        this.appliedVoucher = response.data.voucher
-        this.voucherApplied = true
-        this.voucherError = ''
-        this.$toast.success('Voucher applied successfully!', { position: 'top-right' })
-      } catch (error) {
-        this.voucherError = error.response?.data?.message || 'Invalid voucher code'
-        this.voucherApplied = false
-        this.appliedVoucher = null
-      }
-    },
-    async handleStripePayment() {
-      if (!this.stripe || !this.cardElement) {
-        this.$toast.error('Stripe is not ready yet.', { position: 'top-right' });
-        return;
-      }
-
-      const token = localStorage.getItem('token');
-      
-      // Check authentication before proceeding
-      if (!token) {
-        this.$toast.error('Please log in to complete your purchase.', { position: 'top-right' });
-        this.$router.push('/login');
-        return;
-      }
-      
-      let coinsDeducted = false;
-      const coinsToDeduct = this.useCoins ? this.coinsToUse : 0;
-
-      try {
-        // 1. Deduct coins BEFORE charging Stripe (so we can abort if coins fail)
-        if (coinsToDeduct > 0) {
-          try {
-            await axios.post('/api/coins/deduct', {
-              userId: this.currentUser._id || this.currentUser.id,
-              amount: coinsToDeduct,
-              description: 'Order discount'
-            }, { headers: { Authorization: `Bearer ${token}` } });
-            coinsDeducted = true;
-          } catch (coinError) {
-            this.$toast.error(coinError.response?.data?.message || 'Failed to deduct coins. Please try again.', { position: 'top-right' });
-            return;
-          }
-        }
-
-        // 2. Create a PaymentIntent on your server
-        const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
-          amount: this.totalAmount * 100 // Amount in cents
-        }, { headers: { Authorization: `Bearer ${token}` } });
-
-        // 3. Confirm the card payment
-        const { paymentIntent, error } = await this.stripe.confirmCardPayment(clientSecret, {
-          payment_method: {
-            card: this.cardElement,
-            billing_details: {
-              name: this.shippingAddress.fullName,
-            },
-          }
-        });
-
-        if (error) {
-          // Stripe payment failed - refund coins if already deducted
-          if (coinsDeducted) {
-            try {
-              await axios.post('/api/coins/refund', {
-                userId: this.currentUser._id || this.currentUser.id,
-                amount: coinsToDeduct,
-                description: 'Stripe payment failed - coin refund'
-              }, { headers: { Authorization: `Bearer ${token}` } });
-            } catch (refundErr) {
-              console.error('Failed to refund coins after Stripe error:', refundErr);
-            }
-          }
-          this.$toast.error(error.message, { position: 'top-right' });
-        } else if (paymentIntent && paymentIntent.status === 'succeeded') {
-          // 4. If payment is successful, create the order (coins already deducted)
-          await this.createOrder(paymentIntent.id, coinsDeducted);
-        }
-      } catch (err) {
-        // Refund coins if already deducted and something unexpected failed
-        if (coinsDeducted) {
-          try {
-            await axios.post('/api/coins/refund', {
-              userId: this.currentUser._id || this.currentUser.id,
-              amount: coinsToDeduct,
-              description: 'Payment failed - coin refund'
-            }, { headers: { Authorization: `Bearer ${token}` } });
-          } catch (refundErr) {
-            console.error('Failed to refund coins after payment error:', refundErr);
-          }
-        }
-        this.$toast.error(err.response?.data?.message || 'Payment failed. Please try again.', { position: 'top-right' });
-      }
-    },
-    async loadCoinBalance() {
-      try {
-        const response = await axios.get('/api/coins', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        })
-        this.availableCoins = response.data.coins || 0
-      } catch (error) {
-        console.error('Failed to load coin balance:', error)
-        this.availableCoins = 0
+        await axios.post('/api/coins/deduct', {
+          userId: currentUser.value._id || currentUser.value.id,
+          amount: coinsToDeduct,
+          description: 'Order discount'
+        }, { headers: { Authorization: `Bearer ${token}` } })
+        coinsDeducted = true
+      } catch (coinError) {
+        proxy.$toast.error(coinError.response?.data?.message || 'Failed to deduct coins. Please try again.', { position: 'top-right' })
+        return
       }
     }
+
+    const { data: { clientSecret } } = await axios.post('/api/payments/create-intent', {
+      amount: totalAmount.value * 100
+    }, { headers: { Authorization: `Bearer ${token}` } })
+
+    const { paymentIntent, error } = await stripe.value.confirmCardPayment(clientSecret, {
+      payment_method: {
+        card: cardElement.value,
+        billing_details: {
+          name: shippingAddress.value.fullName,
+        },
+      }
+    })
+
+    if (error) {
+      if (coinsDeducted) {
+        try {
+          await axios.post('/api/coins/refund', {
+            userId: currentUser.value._id || currentUser.value.id,
+            amount: coinsToDeduct,
+            description: 'Stripe payment failed - coin refund'
+          }, { headers: { Authorization: `Bearer ${token}` } })
+        } catch (refundErr) {
+          console.error('Failed to refund coins after Stripe error:', refundErr)
+        }
+      }
+      proxy.$toast.error(error.message, { position: 'top-right' })
+    } else if (paymentIntent && paymentIntent.status === 'succeeded') {
+      await createOrder(paymentIntent.id, coinsDeducted)
+    }
+  } catch (err) {
+    if (coinsDeducted) {
+      try {
+        await axios.post('/api/coins/refund', {
+          userId: currentUser.value._id || currentUser.value.id,
+          amount: coinsToDeduct,
+          description: 'Payment failed - coin refund'
+        }, { headers: { Authorization: `Bearer ${token}` } })
+      } catch (refundErr) {
+        console.error('Failed to refund coins after payment error:', refundErr)
+      }
+    }
+    proxy.$toast.error(err.response?.data?.message || 'Payment failed. Please try again.', { position: 'top-right' })
+  }
+}
+
+const placeOrder = async () => {
+  if (isPlacingOrder.value) return
+  isPlacingOrder.value = true
+  try {
+    if (paymentMethod.value === 'stripe') {
+      await handleStripePayment()
+    } else {
+      await handleCashOnDelivery()
+    }
+  } finally {
+    isPlacingOrder.value = false
   }
 }
 </script>

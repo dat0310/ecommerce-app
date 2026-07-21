@@ -80,7 +80,13 @@
             <!-- Product Title -->
             <h1 class="display-5 fw-bold mb-1">{{ product.name }}</h1>
             <div class="mb-3">
-              <small class="text-muted">Sold by: {{ shopDisplayName }}</small>
+              <small class="text-muted">Sold by:
+                <router-link
+                  :to="'/shop/' + product.sellerId"
+                  class="shop-link"
+                  @click.stop
+                >{{ shopDisplayName }}</router-link>
+              </small>
             </div>
 
             <!-- Rating -->
@@ -114,6 +120,7 @@
                     type="button"
                     class="btn btn-sm variant-option-btn"
                     :class="selectedVariants[variant.name] === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
+                    :disabled="opt.isDisabled"
                     @click="selectVariant(variant.name, opt.value, opt.image)"
                   >
                     {{ opt.value }}
@@ -346,389 +353,370 @@
   </div>
 </template>
 
-<script>
-import { mapActions, mapGetters } from 'vuex'
-import axios from 'axios'
+<script setup>
+import { ref, computed, watch, getCurrentInstance, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import { useProduct, useProductReviews } from '../composables/useProducts'
+import { useAddToCart } from '../composables/useCart'
 
-export default {
-  name: 'ProductDetail',
-  data() {
+const route = useRoute()
+const router = useRouter()
+const store = useStore()
+const { proxy } = getCurrentInstance()
+
+const productId = computed(() => route.params.id)
+
+const { data: product, isLoading: productLoading } = useProduct(productId)
+const { data: reviewsData, isLoading: reviewsLoading } = useProductReviews(productId)
+const addToCartMutation = useAddToCart()
+
+const loading = computed(() => productLoading.value)
+const reviews = computed(() => reviewsData.value?.reviews || [])
+const averageRating = computed(() => reviewsData.value?.averageRating || 0)
+const totalReviews = computed(() => reviewsData.value?.totalReviews || 0)
+
+const quantity = ref(1)
+const isWishlisted = ref(false)
+const selectedImage = ref(null)
+const selectedVariants = ref({})
+
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+const currentUser = computed(() => store.getters.currentUser)
+
+const shopDisplayName = computed(() => {
+  return (
+    product.value?.sellerName ||
+    product.value?.shopName ||
+    product.value?.seller?.name ||
+    product.value?.seller?.shopName ||
+    'Unknown shop'
+  )
+})
+
+const productImages = computed(() => {
+  if (!product.value) return []
+  if (product.value.images && product.value.images.length > 0) {
+    return product.value.images
+  }
+  if (product.value.image) {
+    return [product.value.image]
+  }
+  return ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80']
+})
+
+const currentImageIndex = computed(() => {
+  const currentImg = selectedImage.value || productImages.value[0]
+  const index = productImages.value.indexOf(currentImg)
+  return index >= 0 ? index : 0
+})
+
+const hasVariants = computed(() => {
+  return product.value && product.value.variants && product.value.variants.length > 0
+})
+
+const hasCombinations = computed(() => {
+  return product.value && product.value.productCombinations && product.value.productCombinations.length > 0
+})
+
+const allOptionsSelected = computed(() => {
+  if (!hasVariants.value) return true
+  return product.value.variants.every(v => !!selectedVariants.value[v.name])
+})
+
+const matchingCombinations = computed(() => {
+  if (!hasCombinations.value) return []
+  return product.value.productCombinations.filter(c => {
+    const opts = c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {})
+    return Object.entries(selectedVariants.value).every(([k, v]) => opts[k] === v)
+  })
+})
+
+const displayPrice = computed(() => {
+  if (!product.value) return '$0'
+  if (!hasCombinations.value) return `$${product.value.price}`
+
+  const combos = matchingCombinations.value
+  if (combos.length === 0) {
+    const allPrices = product.value.productCombinations.map(c => c.price)
+    const min = Math.min(...allPrices)
+    const max = Math.max(...allPrices)
+    return min === max ? `$${min}` : `$${min} - $${max}`
+  }
+
+  const prices = combos.map(c => c.price)
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  return min === max ? `$${min}` : `$${min} - $${max}`
+})
+
+const availableStock = computed(() => {
+  if (!product.value) return 0
+  if (!hasCombinations.value) return product.value.stock
+
+  if (allOptionsSelected.value && matchingCombinations.value.length > 0) {
+    return matchingCombinations.value[0].stock
+  }
+  return product.value.stock
+})
+
+const filteredReviews = computed(() => {
+  if (!currentUser.value || !reviews.value.length) return reviews.value
+  const userId = currentUser.value._id || currentUser.value.id
+  return reviews.value.filter(r => r.userId !== userId)
+})
+
+const isOwnProduct = computed(() => {
+  if (!currentUser.value || !product.value?.sellerId) return false
+  const userId = currentUser.value._id || currentUser.value.id
+  return product.value.sellerId === userId
+})
+
+const filteredVariants = computed(() => {
+  if (!hasVariants.value) return []
+  if (!hasCombinations.value) return product.value.variants
+
+  const getMatchingCombinations = (excludeVariant = null) => {
+    return product.value.productCombinations.filter(combo => {
+      const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+      return Object.entries(selectedVariants.value).every(([key, value]) => {
+        if (key === excludeVariant) return true
+        if (!value) return true
+        return opts[key] === value
+      })
+    })
+  }
+
+  return product.value.variants.map(variant => {
+    const matchingCombos = getMatchingCombinations(variant.name)
+    const validValues = new Set()
+    matchingCombos.forEach(combo => {
+      const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+      if (opts[variant.name]) {
+        validValues.add(opts[variant.name])
+      }
+    })
+
     return {
-      loading: true,
-      product: null,
-      quantity: 1,
-      isWishlisted: false,
-      selectedImage: null,
-      selectedVariants: {},
-      // Reviews
-      reviews: [],
-      averageRating: 0,
-      totalReviews: 0,
-      Math: Math
-    }
-  },
-  computed: {
-    ...mapGetters(['isAuthenticated', 'currentUser']),
-    shopDisplayName() {
-      return (
-        this.product?.sellerName ||
-        this.product?.shopName ||
-        this.product?.seller?.name ||
-        this.product?.seller?.shopName ||
-        'Unknown shop'
-      )
-    },
-    productImages() {
-      if (!this.product) return []
-      if (this.product.images && this.product.images.length > 0) {
-        return this.product.images
-      }
-      if (this.product.image) {
-        return [this.product.image]
-      }
-      return ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80']
-    },
-    currentImageIndex() {
-      const currentImg = this.selectedImage || this.productImages[0]
-      const index = this.productImages.indexOf(currentImg)
-      return index >= 0 ? index : 0
-    },
-    hasVariants() {
-      return this.product && this.product.variants && this.product.variants.length > 0
-    },
-    hasCombinations() {
-      return this.product && this.product.productCombinations && this.product.productCombinations.length > 0
-    },
-    allOptionsSelected() {
-      if (!this.hasVariants) return true
-      return this.product.variants.every(v => !!this.selectedVariants[v.name])
-    },
-    matchingCombinations() {
-      if (!this.hasCombinations) return []
-      return this.product.productCombinations.filter(c => {
-        const opts = c.options instanceof Map ? Object.fromEntries(c.options) : (c.options || {})
-        return Object.entries(this.selectedVariants).every(([k, v]) => opts[k] === v)
-      })
-    },
-    displayPrice() {
-      if (!this.product) return '$0'
-
-      if (!this.hasCombinations) return `$${this.product.price}`
-
-      const combos = this.matchingCombinations
-      if (combos.length === 0) {
-        const allPrices = this.product.productCombinations.map(c => c.price)
-        const min = Math.min(...allPrices)
-        const max = Math.max(...allPrices)
-        return min === max ? `$${min}` : `$${min} - $${max}`
-      }
-
-      const prices = combos.map(c => c.price)
-      const min = Math.min(...prices)
-      const max = Math.max(...prices)
-      return min === max ? `$${min}` : `$${min} - $${max}`
-    },
-    availableStock() {
-      if (!this.product) return 0
-      if (!this.hasCombinations) return this.product.stock
-
-      if (this.allOptionsSelected && this.matchingCombinations.length > 0) {
-        return this.matchingCombinations[0].stock
-      }
-      return this.product.stock
-    },
-    myExistingReviews() {
-      if (!this.currentUser || !this.reviews.length) return []
-      const userId = this.currentUser._id || this.currentUser.id
-      return this.reviews.filter(r => r.userId === userId)
-    },
-    filteredReviews() {
-      if (!this.currentUser || !this.reviews.length) return this.reviews
-      const userId = this.currentUser._id || this.currentUser.id
-      return this.reviews.filter(r => r.userId !== userId)
-    },
-    isOwnProduct() {
-      if (!this.currentUser || !this.product.sellerId) return false
-      const userId = this.currentUser._id || this.currentUser.id
-      return this.product.sellerId === userId
-    },
-    // Filter variants to only include options that exist in productCombinations
-    // AND are compatible with currently selected options
-    filteredVariants() {
-      if (!this.hasVariants) return []
-      if (!this.hasCombinations) return this.product.variants
-
-      // Get combinations that match currently selected options
-      const getMatchingCombinations = (excludeVariant = null) => {
-        return this.product.productCombinations.filter(combo => {
-          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
-          // Check if this combination matches all currently selected options (except the excluded variant)
-          return Object.entries(this.selectedVariants).every(([key, value]) => {
-            if (key === excludeVariant) return true // Skip the variant we're filtering for
-            if (!value) return true // Skip unselected variants
-            return opts[key] === value
-          })
-        })
-      }
-
-      // Filter variants and their options based on available combinations
-      return this.product.variants.map(variant => {
-        // Get combinations that match all OTHER selected options
-        const matchingCombos = getMatchingCombinations(variant.name)
-        
-        // Extract valid values for this variant from matching combinations
-        const validValues = new Set()
-        matchingCombos.forEach(combo => {
-          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
-          if (opts[variant.name]) {
-            validValues.add(opts[variant.name])
-          }
-        })
-
-        return {
-          ...variant,
-          options: variant.options.filter(opt => validValues.has(opt.value))
-        }
-      }).filter(variant => variant.options.length > 0)
-    },
-    chatProductContext() {
-      if (!this.product) return null
-      return {
-        productId: this.product._id,
-        name: this.product.name,
-        image: (this.product.images && this.product.images[0]) || this.product.image || '',
-        price: this.product.price
-      }
-    }
-  },
-  async created() {
-    try {
-      const productId = this.$route.params.id
-      const response = await this.$http.get(`/api/products/${productId}`)
-      this.product = response.data
-      this.syncWishlistState()
-      this.initVariantSelection()
-      await this.fetchReviews()
-    } catch (error) {
-      console.error('Error fetching product:', error)
-      this.$toast.error('Failed to load product. Please try again later.', {
-        position: 'top-right',
-        timeout: 3000
-      })
-    } finally {
-      this.loading = false
-    }
-  },
-  methods: {
-    ...mapActions(['addToCart']),
-    prevImage() {
-      const newIndex = this.currentImageIndex > 0 
-        ? this.currentImageIndex - 1 
-        : this.productImages.length - 1
-      this.selectedImage = this.productImages[newIndex]
-    },
-    nextImage() {
-      const newIndex = this.currentImageIndex < this.productImages.length - 1 
-        ? this.currentImageIndex + 1 
-        : 0
-      this.selectedImage = this.productImages[newIndex]
-    },
-    chatWithSeller() {
-      window.dispatchEvent(new CustomEvent('open-seller-chat', {
-        detail: {
-          sellerId: this.product.sellerId,
-          sellerName: this.shopDisplayName,
-          productContext: this.chatProductContext
-        }
+      ...variant,
+      options: variant.options.map(opt => ({
+        ...opt,
+        isDisabled: !validValues.has(opt.value)
       }))
-    },
-    selectVariant(groupName, value, optImage) {
-      if (this.selectedVariants[groupName] === value) {
-        const updated = { ...this.selectedVariants }
-        delete updated[groupName]
-        this.selectedVariants = updated
-        // Find image from remaining selected options
-        let fallbackImage = null
-        if (this.product && this.product.variants) {
-          for (const variant of this.product.variants) {
-            const selectedValue = updated[variant.name]
-            if (selectedValue) {
-              const opt = variant.options.find(o => o.value === selectedValue)
-              if (opt && opt.image) {
-                fallbackImage = opt.image
-                break
-              }
-            }
-          }
-        }
-        this.selectedImage = fallbackImage
-      } else {
-        this.selectedVariants = { ...this.selectedVariants, [groupName]: value }
-        if (optImage) {
-          this.selectedImage = optImage
-        }
-        // Clear any selections that are no longer valid after this change
-        this.$nextTick(() => {
-          this.clearInvalidSelections()
-        })
-      }
-    },
-    clearInvalidSelections() {
-      if (!this.hasCombinations) return
-      
-      let changed = false
-      const updated = { ...this.selectedVariants }
-      
-      // For each selected variant, check if it's still valid
-      for (const [variantName, selectedValue] of Object.entries(updated)) {
-        if (!selectedValue) continue
-        
-        // Find valid values for this variant given other selections
-        const validValues = new Set()
-        this.product.productCombinations.forEach(combo => {
-          const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
-          // Check if this combination matches all OTHER selected options
-          const matchesOthers = Object.entries(updated).every(([key, value]) => {
-            if (key === variantName) return true
-            if (!value) return true
-            return opts[key] === value
-          })
-          if (matchesOthers && opts[variantName]) {
-            validValues.add(opts[variantName])
-          }
-        })
-        
-        // If current selection is not in valid values, clear it
-        if (!validValues.has(selectedValue)) {
-          delete updated[variantName]
-          changed = true
-        }
-      }
-      
-      if (changed) {
-        this.selectedVariants = updated
-      }
-    },
-    initVariantSelection() {
-      this.selectedVariants = {}
-    },
-    async handleBuyNow() {
-      if (!this.isAuthenticated) {
-        this.$toast.error('Please log in to proceed with purchase.', { position: 'top-right', timeout: 3000 })
-        this.$router.push('/login')
-        return
-      }
-      if (!this.product) return
-      if (this.hasVariants && !this.allOptionsSelected) {
-        this.$toast.warning('Please select all options before buying.', { position: 'top-right', timeout: 5000, closeOnClick: false })
-        return
-      }
-      const productToAdd = {
-        ...this.product,
-        price: this.hasCombinations && this.matchingCombinations.length > 0 ? this.matchingCombinations[0].price : this.product.price,
-        selectedOptions: { ...this.selectedVariants }
-      }
-      for (let i = 0; i < this.quantity; i++) {
-        await this.addToCart(productToAdd)
-      }
-      this.$router.push({ path: '/cart', query: { select: this.product._id } })
-    },
-    handleAddToCart() {
-      if (!this.isAuthenticated) {
-        this.$toast.error('Please log in to add items to cart.', { position: 'top-right', timeout: 3000 })
-        this.$router.push('/login')
-        return
-      }
-      if (this.hasVariants && !this.allOptionsSelected) {
-        this.$toast.warning('Please select all options before adding to cart.', { position: 'top-right', timeout: 5000, closeOnClick: false })
-        return
-      }
-      if (this.quantity < 1) {
-        this.$toast.warning('Please select at least 1 item.', { position: 'top-right', timeout: 3000 })
-        return
-      }
-      if (this.quantity > this.availableStock) {
-        this.$toast.warning(`Only ${this.availableStock} items available.`, { position: 'top-right', timeout: 3000 })
-        return
-      }
-
-      const productToAdd = {
-        ...this.product,
-        price: this.hasCombinations && this.matchingCombinations.length > 0 ? this.matchingCombinations[0].price : this.product.price,
-        selectedOptions: { ...this.selectedVariants }
-      }
-      for (let i = 0; i < this.quantity; i++) {
-        this.addToCart(productToAdd)
-      }
-
-      this.$toast.success(`${this.quantity} ${this.product.name} added to your cart.`, { position: 'top-right', timeout: 3000 })
-      this.quantity = 1
-    },
-    handleAddToWishlist() {
-      if (!this.product) return
-      const key = 'wishlist'
-      const stored = localStorage.getItem(key)
-      let wishlist = []
-      try {
-        wishlist = stored ? JSON.parse(stored) : []
-      } catch (_) {
-        wishlist = []
-      }
-      const index = wishlist.findIndex(item => item._id === this.product._id)
-      if (index >= 0) {
-        wishlist.splice(index, 1)
-        this.$toast && this.$toast.info('Removed from your wishlist.', {
-          position: 'top-right',
-          timeout: 2000
-        })
-      } else {
-        const minimal = {
-          _id: this.product._id,
-          name: this.product.name,
-          price: this.product.price,
-          image: (this.product.images && this.product.images[0]) || this.product.image || '',
-          sellerName: this.shopDisplayName
-        }
-        wishlist.push(minimal)
-        this.$toast && this.$toast.success('Added to your wishlist.', {
-          position: 'top-right',
-          timeout: 2000
-        })
-      }
-      localStorage.setItem(key, JSON.stringify(wishlist))
-      this.syncWishlistState()
-      window.dispatchEvent(new Event('wishlist-updated'))
     }
-    ,
-    async fetchReviews() {
-      try {
-        const productId = this.$route.params.id
-        const response = await axios.get(`/api/products/${productId}/reviews`)
-        this.reviews = response.data.reviews || []
-        this.averageRating = response.data.averageRating || 0
-        this.totalReviews = response.data.totalReviews || 0
-      } catch (error) {
-        console.error('Error fetching reviews:', error)
-      }
-    },
-    formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric'
+  })
+})
+
+const chatProductContext = computed(() => {
+  if (!product.value) return null
+  return {
+    productId: product.value._id,
+    name: product.value.name,
+    image: (product.value.images && product.value.images[0]) || product.value.image || '',
+    price: product.value.price
+  }
+})
+
+const syncWishlistState = () => {
+  if (!product.value) {
+    isWishlisted.value = false
+    return
+  }
+  try {
+    const items = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    isWishlisted.value = items.some(i => i._id === product.value._id)
+  } catch (_) {
+    isWishlisted.value = false
+  }
+}
+
+watch(product, (newVal) => {
+  if (newVal) {
+    syncWishlistState()
+  }
+})
+
+const prevImage = () => {
+  const newIndex = currentImageIndex.value > 0 
+    ? currentImageIndex.value - 1 
+    : productImages.value.length - 1
+  selectedImage.value = productImages.value[newIndex]
+}
+
+const nextImage = () => {
+  const newIndex = currentImageIndex.value < productImages.value.length - 1 
+    ? currentImageIndex.value + 1 
+    : 0
+  selectedImage.value = productImages.value[newIndex]
+}
+
+const chatWithSeller = () => {
+  window.dispatchEvent(new CustomEvent('open-seller-chat', {
+    detail: {
+      sellerId: product.value.sellerId,
+      sellerName: shopDisplayName.value,
+      productContext: chatProductContext.value
+    }
+  }))
+}
+
+const clearInvalidSelections = () => {
+  if (!hasCombinations.value) return
+  
+  let changed = false
+  const updated = { ...selectedVariants.value }
+  
+  for (const [variantName, selectedValue] of Object.entries(updated)) {
+    if (!selectedValue) continue
+    
+    const validValues = new Set()
+    product.value.productCombinations.forEach(combo => {
+      const opts = combo.options instanceof Map ? Object.fromEntries(combo.options) : (combo.options || {})
+      const matchesOthers = Object.entries(updated).every(([key, value]) => {
+        if (key === variantName) return true
+        if (!value) return true
+        return opts[key] === value
       })
-    },
-    syncWishlistState() {
-      if (!this.product) {
-        this.isWishlisted = false
-        return
+      if (matchesOthers && opts[variantName]) {
+        validValues.add(opts[variantName])
       }
-      try {
-        const items = JSON.parse(localStorage.getItem('wishlist') || '[]')
-        this.isWishlisted = items.some(i => i._id === this.product._id)
-      } catch (_) {
-        this.isWishlisted = false
-      }
+    })
+    
+    if (!validValues.has(selectedValue)) {
+      delete updated[variantName]
+      changed = true
     }
   }
+  
+  if (changed) {
+    selectedVariants.value = updated
+  }
+}
+
+const selectVariant = (groupName, value, optImage) => {
+  if (selectedVariants.value[groupName] === value) {
+    const updated = { ...selectedVariants.value }
+    delete updated[groupName]
+    selectedVariants.value = updated
+    let fallbackImage = null
+    if (product.value && product.value.variants) {
+      for (const variant of product.value.variants) {
+        const selectedValue = updated[variant.name]
+        if (selectedValue) {
+          const opt = variant.options.find(o => o.value === selectedValue)
+          if (opt && opt.image) {
+            fallbackImage = opt.image
+            break
+          }
+        }
+      }
+    }
+    selectedImage.value = fallbackImage
+  } else {
+    selectedVariants.value = { ...selectedVariants.value, [groupName]: value }
+    if (optImage) {
+      selectedImage.value = optImage
+    }
+    nextTick(() => {
+      clearInvalidSelections()
+    })
+  }
+}
+
+const handleBuyNow = async () => {
+  if (!isAuthenticated.value) {
+    proxy.$toast.error('Please log in to proceed with purchase.', { position: 'top-right', timeout: 3000 })
+    router.push('/login')
+    return
+  }
+  if (!product.value) return
+  if (hasVariants.value && !allOptionsSelected.value) {
+    proxy.$toast.warning('Please select all options before buying.', { position: 'top-right', timeout: 5000, closeOnClick: false })
+    return
+  }
+  
+  const price = hasCombinations.value && matchingCombinations.value.length > 0 
+    ? matchingCombinations.value[0].price 
+    : product.value.price
+    
+  addToCartMutation.mutate({
+    productId: product.value._id,
+    quantity: quantity.value,
+    selectedOptions: { ...selectedVariants.value }
+  })
+  
+  router.push({ path: '/cart', query: { select: product.value._id } })
+}
+
+const handleAddToCart = () => {
+  if (!isAuthenticated.value) {
+    proxy.$toast.error('Please log in to add items to cart.', { position: 'top-right', timeout: 3000 })
+    router.push('/login')
+    return
+  }
+  if (hasVariants.value && !allOptionsSelected.value) {
+    proxy.$toast.warning('Please select all options before adding to cart.', { position: 'top-right', timeout: 5000, closeOnClick: false })
+    return
+  }
+  if (quantity.value < 1) {
+    proxy.$toast.warning('Please select at least 1 item.', { position: 'top-right', timeout: 3000 })
+    return
+  }
+  if (quantity.value > availableStock.value) {
+    proxy.$toast.warning(`Only ${availableStock.value} items available.`, { position: 'top-right', timeout: 3000 })
+    return
+  }
+
+  addToCartMutation.mutate({
+    productId: product.value._id,
+    quantity: quantity.value,
+    selectedOptions: { ...selectedVariants.value }
+  })
+
+  proxy.$toast.success(`${quantity.value} ${product.value.name} added to your cart.`, { position: 'top-right', timeout: 3000 })
+  quantity.value = 1
+}
+
+const handleAddToWishlist = () => {
+  if (!product.value) return
+  const key = 'wishlist'
+  const stored = localStorage.getItem(key)
+  let wishlist = []
+  try {
+    wishlist = stored ? JSON.parse(stored) : []
+  } catch (_) {
+    wishlist = []
+  }
+  const index = wishlist.findIndex(item => item._id === product.value._id)
+  if (index >= 0) {
+    wishlist.splice(index, 1)
+    proxy.$toast && proxy.$toast.info('Removed from your wishlist.', {
+      position: 'top-right',
+      timeout: 2000
+    })
+  } else {
+    const minimal = {
+      _id: product.value._id,
+      name: product.value.name,
+      price: product.value.price,
+      image: (product.value.images && product.value.images[0]) || product.value.image || '',
+      sellerName: shopDisplayName.value
+    }
+    wishlist.push(minimal)
+    proxy.$toast && proxy.$toast.success('Added to your wishlist.', {
+      position: 'top-right',
+      timeout: 2000
+    })
+  }
+  localStorage.setItem(key, JSON.stringify(wishlist))
+  syncWishlistState()
+  window.dispatchEvent(new Event('wishlist-updated'))
+}
+
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric', month: 'short', day: 'numeric'
+  })
 }
 </script>
 
@@ -1188,5 +1176,17 @@ export default {
     padding: 0.4rem 1rem;
     font-size: 0.8rem;
   }
+}
+
+.shop-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.shop-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
 }
 </style>

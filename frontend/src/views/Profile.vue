@@ -235,8 +235,8 @@
                 <div v-if="message" class="alert alert-success mt-3" role="alert">
                   {{ message }}
                 </div>
-                <div v-if="error" class="alert alert-danger mt-3" role="alert">
-                  {{ error }}
+                <div v-if="errorMsg" class="alert alert-danger mt-3" role="alert">
+                  {{ errorMsg }}
                 </div>
               </div>
             </div>
@@ -266,12 +266,14 @@
                       <span class="badge bg-danger rounded-1 px-1 me-1">Mall</span>
                       <span class="fw-bold me-2">{{ order.products[0]?.sellerName || 'Shop Name' }}</span>
                       
-                      <button class="btn btn-sm btn-danger text-white d-flex align-items-center gap-1 px-2" style="font-size: 0.8rem;">
-                        <i class="bi bi-chat-dots-fill"></i> Chat
-                      </button>
-                      <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 px-2" style="font-size: 0.8rem;">
+                      <router-link 
+                        v-if="order.products[0]?.sellerId"
+                        :to="'/shop/' + order.products[0].sellerId"
+                        class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 px-2" 
+                        style="font-size: 0.8rem; text-decoration: none;"
+                      >
                         <i class="bi bi-shop"></i> View Shop
-                      </button>
+                      </router-link>
                     </div>
                     <div class="text-uppercase text-danger fw-bold">
                       {{ getStatusDisplayText(order.status) }}
@@ -923,618 +925,649 @@
   </div>
 </template>
 
-<script>
-import { mapGetters } from 'vuex'
+<script setup>
+import { ref, reactive, computed, watch, onMounted, getCurrentInstance } from 'vue'
+import { useStore } from 'vuex'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
+import axios from 'axios'
 
-export default {
-  name: 'Profile',
-  data() {
-    return {
-      activeTab: 'account',
-      loading: true,
-      updating: false,
-      showAddAddress: false,
-      message: '',
-      error: '',
-      user: {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        addresses: []
-      },
-      newAddress: {
-        fullName: '',
-        phoneNumber: '',
-        cityDistrictWard: '',
-        streetBuildingHouse: '',
-        isDefault: false
-      },
-      selectedCity: '',
-      selectedDistrict: '',
-      selectedWard: '',
-      locations: {
-        cities: [],
-        districts: {},
-        wards: {}
-      },
-      provinceCodes: {},
-      districtCodes: {},
-      locationsLoading: true,
-      orders: [],
-      ordersLoading: false,
-      vouchers: [],
-      vouchersLoading: false,
-      coins: 0,
-      dailyClaimed: false,
-      // Review Modal
-      showReviewModal: false,
-      reviewTarget: {},
-      modalReview: { rating: 0, comment: '' },
-      modalReviewError: '',
-      modalReviewSuccess: '',
-      modalSubmitting: false,
-      reviewedKeys: new Set(),
-      hoverRating: 0,
-      // Order Detail Modal
-      showOrderDetail: false,
-      orderDetail: null,
-      // Tracking Modal
-      showTrackingModal: false,
-      trackingOrder: null,
-      // Refund Modal
-      showRefundModal: false,
-      refundOrder: null,
-      refundReason: '',
-      refundDescription: '',
-      refundReasons: [
-        { value: 'Item damaged or broken', label: 'Item damaged or broken', icon: 'bi bi-box-seam' },
-        { value: 'Item does not match description', label: 'Doesn\'t match description', icon: 'bi bi-exclamation-triangle' },
-        { value: 'Missing quantity/accessories', label: 'Missing items/accessories', icon: 'bi bi-dash-circle' },
-        { value: 'Wrong item received', label: 'Wrong item received', icon: 'bi bi-shuffle' },
-        { value: 'Other', label: 'Other reason', icon: 'bi bi-three-dots' }
-      ]
-    }
-  },
-  computed: {
-    ...mapGetters(['currentUser']),
-    availableDistricts() {
-      return this.locations.districts[this.selectedCity] || []
-    },
-    availableWards() {
-      return this.locations.wards[this.selectedDistrict] || []
-    }
-  },
-  watch: {
-    currentUser: {
-      handler(newVal) {
-        if (newVal) {
-          this.user = { ...newVal }
-        }
-      },
-      deep: true,
-      immediate: true
-    },
-    selectedCity() {
-      this.selectedDistrict = ''
-      this.selectedWard = ''
-    },
-    selectedDistrict() {
-      this.selectedWard = ''
-    }
-  },
-  async created() {
-    this.loadUserData()
-    
-    this.loadLocationsRequested = false;
-    
-    // Defer loading other tab data until needed or just fire async and forget
-    this.loadOrders()
-    this.loadMyReviews()
-    this.loadVouchers()
-    this.loadCoins()
-  },
-  methods: {
-    async loadLocations() {
-      if (this.locations.cities.length > 0) return; // Already loaded
-      this.locationsLoading = true;
-      try {
-        const [provincesRes, districtsRes, wardsRes] = await Promise.all([
-          fetch('https://provinces.open-api.vn/api/p/'),
-          fetch('https://provinces.open-api.vn/api/d/'),
-          fetch('https://provinces.open-api.vn/api/w/')
-        ])
+const store = useStore()
+const { proxy } = getCurrentInstance()
+const queryClient = useQueryClient()
 
-        const provinces = await provincesRes.json()
-        const districts = await districtsRes.json()
-        const wards = await wardsRes.json()
+const activeTab = ref('account')
+const updating = ref(false)
+const showAddAddress = ref(false)
+const message = ref('')
+const errorMsg = ref('')
 
-        // Load provinces
-        this.locations.cities = provinces.map(p => p.name).sort()
-        this.provinceCodes = {}
-        provinces.forEach(p => {
-          this.provinceCodes[p.name] = p.code
-        })
+const user = ref({
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  addresses: []
+})
 
-        // Load districts
-        this.locations.districts = {}
-        districts.forEach(d => {
-          const province = provinces.find(p => p.code === d.province_code)
-          if (province) {
-            const provinceName = province.name
-            if (!this.locations.districts[provinceName]) {
-              this.locations.districts[provinceName] = []
-            }
-            this.locations.districts[provinceName].push(d.name)
-          }
-        })
-        // Sort districts for each province
-        Object.keys(this.locations.districts).forEach(province => {
-          this.locations.districts[province].sort()
-        })
+const newAddress = reactive({
+  fullName: '',
+  phoneNumber: '',
+  cityDistrictWard: '',
+  streetBuildingHouse: '',
+  isDefault: false
+})
 
-        this.districtCodes = {}
-        districts.forEach(d => {
-          const province = provinces.find(p => p.code === d.province_code)
-          if (province) {
-            const key = `${province.name}-${d.name}`
-            this.districtCodes[key] = d.code
-          }
-        })
+const selectedCity = ref('')
+const selectedDistrict = ref('')
+const selectedWard = ref('')
 
-        // Load wards
-        this.locations.wards = {}
-        wards.forEach(w => {
-          const district = districts.find(d => d.code === w.district_code)
-          if (district) {
-            const districtName = district.name
-            if (!this.locations.wards[districtName]) {
-              this.locations.wards[districtName] = []
-            }
-            this.locations.wards[districtName].push(w.name)
-          }
-        })
-        // Sort wards for each district
-        Object.keys(this.locations.wards).forEach(district => {
-          this.locations.wards[district].sort()
-        })
-      } catch (error) {
-        console.error('Error loading locations:', error)
-      } finally {
-        this.locationsLoading = false
-      }
-    },
-    showAddAddressForm() {
-      this.showAddAddress = !this.showAddAddress;
-      if (this.showAddAddress) {
-          this.loadLocations();
-      }
-    },
-    async loadUserData() {
-      this.loading = true
-      try {
-        if (this.currentUser) {
-          this.user = { ...this.currentUser }
-        } else {
-          // Fetch user data if not in store
-          const response = await this.$http.get('/api/users/me')
-          this.user = response.data
-          this.$store.commit('SET_USER', response.data)
-        }
-      } catch (error) {
-        console.error('Error loading user data:', error)
-        this.error = 'Failed to load user data.'
-      } finally {
-        this.loading = false
-      }
-    },
-    async updateProfile() {
-      this.updating = true
-      this.message = ''
-      this.error = ''
+const locations = reactive({
+  cities: [],
+  districts: {},
+  wards: {}
+})
 
-      try {
-        const response = await this.$http.patch('/api/users/me', this.user)
-        this.$store.commit('SET_USER', response.data.user)
-        this.message = 'Profile updated successfully!'
-      } catch (error) {
-        console.error('Error updating profile:', error)
-        this.error = error.response?.data?.message || 'Failed to update profile.'
-      } finally {
-        this.updating = false
-      }
-    },
-    async addAddress() {
-      this.newAddress.cityDistrictWard = `${this.selectedCity}, ${this.selectedDistrict}, ${this.selectedWard}`
-      try {
-        const response = await this.$http.post('/api/users/addresses', this.newAddress)
-        this.user.addresses = response.data.addresses
-        this.$store.commit('SET_USER', { ...this.user, addresses: response.data.addresses })
-        this.newAddress = {
-          fullName: '',
-          phoneNumber: '',
-          cityDistrictWard: '',
-          streetBuildingHouse: '',
-          isDefault: false
-        }
-        this.selectedCity = ''
-        this.selectedDistrict = ''
-        this.selectedWard = ''
-        this.showAddAddress = false
-        this.message = 'Address added successfully!'
-      } catch (error) {
-        console.error('Error adding address:', error)
-        this.error = error.response?.data?.message || 'Failed to add address.'
-      }
-    },
-    async setDefaultAddress(index) {
-      try {
-        const addressId = this.user.addresses[index]._id
-        const response = await this.$http.put(`/api/users/addresses/${addressId}`, {
-          ...this.user.addresses[index],
-          isDefault: true
-        })
-        this.user.addresses = response.data.addresses
-        this.$store.commit('SET_USER', { ...this.user, addresses: response.data.addresses })
-        this.message = 'Default address updated!'
-      } catch (error) {
-        console.error('Error setting default address:', error)
-        this.error = error.response?.data?.message || 'Failed to set default address.'
-      }
-    },
-    async removeAddress(index) {
-      if (!confirm('Are you sure you want to remove this address?')) return
+const provinceCodes = ref({})
+const districtCodes = ref({})
+const locationsLoading = ref(false)
 
-      try {
-        const addressId = this.user.addresses[index]._id
-        const response = await this.$http.delete(`/api/users/addresses/${addressId}`)
-        this.user.addresses = response.data.addresses
-        this.$store.commit('SET_USER', { ...this.user, addresses: response.data.addresses })
-        this.message = 'Address removed successfully!'
-      } catch (error) {
-        console.error('Error removing address:', error)
-        this.error = error.response?.data?.message || 'Failed to remove address.'
-      }
-    },
-    async loadOrders() {
-      this.ordersLoading = true
-      try {
-        const response = await this.$http.get('/api/users/me/orders')
-        this.orders = response.data
-        // Try to fetch images for old orders that lack them
-        this.fetchMissingImages()
-      } catch (error) {
-        console.error('Error loading orders:', error)
-      } finally {
-        this.ordersLoading = false
-      }
-    },
-    async loadMyReviews() {
-      try {
-        const response = await this.$http.get('/api/products/reviews/my')
-        const reviews = response.data || []
-        this.reviewedKeys = new Set(reviews.map(r => r.orderId + ':' + r.productId))
-      } catch (error) {
-        console.error('Error loading user reviews:', error)
-      }
-    },
-    async fetchMissingImages() {
-      const productsToFetch = new Set()
-      
-      // Identify unique products with missing images
-      this.orders.forEach(order => {
-        order.products.forEach(p => {
-          if (!p.image) {
-            productsToFetch.add(p.productId)
-          }
-        })
-      })
+// Modals state
+const showReviewModal = ref(false)
+const reviewTarget = ref({})
+const modalReview = reactive({ rating: 0, comment: '' })
+const modalReviewError = ref('')
+const modalReviewSuccess = ref('')
+const modalSubmitting = ref(false)
+const hoverRating = ref(0)
 
-      // Fetch images for these products
-      for (const productId of productsToFetch) {
-        try {
-          const response = await this.$http.get(`/api/products/${productId}`)
-          const productImage = response.data.image
-          
-          if (productImage) {
-            // Update all instances in local state
-            this.orders.forEach(order => {
-              order.products.forEach(p => {
-                if (p.productId === productId && !p.image) {
-                  p.image = productImage
-                }
-              })
-            })
-          }
-        } catch (error) {
-          // Silent failure if product no longer exists
-          console.warn(`Could not fetch image for product ${productId}`)
-        }
-      }
-    },
-    getStatusClass(status) {
-      const classes = {
-        pending: 'status-pending',
-        confirmed: 'status-confirmed',
-        processing: 'status-processing',
-        shipped: 'status-shipped',
-        delivered: 'status-delivered',
-        completed: 'status-completed',
-        cancelled: 'status-cancelled',
-        refund_requested: 'status-refund',
-        refund_approved: 'status-refund',
-        refund_rejected: 'status-cancelled'
-      }
-      return classes[status] || 'status-pending'
-    },
-    getStatusIcon(status) {
-      const icons = {
-        pending: 'bi bi-clock-fill',
-        confirmed: 'bi bi-check-circle-fill',
-        processing: 'bi bi-gear-fill',
-        shipped: 'bi bi-truck',
-        delivered: 'bi bi-box-seam-fill',
-        completed: 'bi bi-check-all',
-        cancelled: 'bi bi-x-circle-fill',
-        refund_requested: 'bi bi-arrow-repeat',
-        refund_approved: 'bi bi-arrow-counterclockwise',
-        refund_rejected: 'bi bi-x-octagon-fill'
-      }
-      return icons[status] || 'bi bi-clock-fill'
-    },
-    getPaymentIcon(method) {
-      const icons = {
-        stripe: 'bi bi-stripe',
-        credit_card: 'bi bi-credit-card-fill',
-        paypal: 'bi bi-paypal',
-        cash_on_delivery: 'bi bi-cash-stack'
-      }
-      return icons[method] || 'bi bi-wallet2'
-    },
-    getPaymentLabel(method) {
-      const labels = {
-        stripe: 'Stripe',
-        credit_card: 'Credit Card',
-        paypal: 'PayPal',
-        cash_on_delivery: 'Cash on Delivery'
-      }
-      return labels[method] || method || 'COD'
-    },
-    viewOrderDetails(order) {
-      this.orderDetail = order
-      this.showOrderDetail = true
-    },
-    async cancelOrder(order) {
-      if (!confirm('Are you sure you want to cancel this order?')) return
-      try {
-        await this.$http.patch(`/api/orders/${order._id}/cancel`)
-        order.status = 'cancelled'
-        this.$toast?.success('Order cancelled successfully.', { position: 'top-right', timeout: 3000 })
-      } catch (error) {
-        console.error('Error cancelling order:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to cancel order.', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    async confirmReceivedAndReview(order) {
-      if (!confirm('Confirm you have received this order?')) return
-      try {
-        await this.$http.patch(`/api/orders/${order._id}/confirm-received`)
-        order.status = 'completed'
-        this.$toast?.success('Order marked as received!', { position: 'top-right', timeout: 3000 })
-        const unreviewedProduct = order.products.find(p => !this.reviewedKeys.has(order._id + ':' + p.productId))
-        if(unreviewedProduct) {
-          this.openReviewModal(unreviewedProduct, order)
-        }
-      } catch (error) {
-        console.error('Error confirming order:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to confirm order.', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    openRefundModal(order) {
-      this.refundOrder = order;
-      this.refundReason = 'Item damaged or broken';
-      this.refundDescription = '';
-      this.showRefundModal = true;
-    },
-    closeRefundModal() {
-      this.showRefundModal = false;
-      this.refundOrder = null;
-    },
-    async submitRefundRequest() {
-      const order = this.refundOrder;
-      if(!order) return;
-      try {
-        // Here we could send the reason and description to the backend if supported, 
-        // but for now we just hit the existing refund endpoint
-        await this.$http.patch(`/api/orders/${order._id}/request-refund`, {
-          reason: this.refundReason,
-          description: this.refundDescription
-        })
-        order.status = 'refund_requested'
-        this.$toast?.success('Refund requested successfully.', { position: 'top-right', timeout: 3000 })
-        this.closeRefundModal()
-      } catch (error) {
-        console.error('Error requesting refund:', error)
-        this.$toast?.error('Failed to request refund.', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    contactSeller(order) {
-      const firstProduct = order.products?.[0]
-      const sellerId = firstProduct?.sellerId
-      const sellerName = firstProduct?.sellerName || 'Seller'
-      if (!sellerId) {
-        this.$toast?.error('Seller info not available.', { position: 'top-right', timeout: 2000 })
-        return
-      }
-      const productContext = firstProduct ? {
-        productId: firstProduct.productId,
-        name: firstProduct.productName || firstProduct.name || 'Product',
-        image: (firstProduct.images && firstProduct.images[0]) || firstProduct.image || '',
-        price: firstProduct.price
-      } : null
-      window.dispatchEvent(new CustomEvent('open-seller-chat', {
-        detail: { sellerId, sellerName, productContext }
-      }))
-    },
-    async loadVouchers() {
-      this.vouchersLoading = true
-      try {
-        const token = localStorage.getItem('token')
-        const response = await this.$http.get('/api/vouchers/my-vouchers', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        this.vouchers = response.data
-      } catch (error) {
-        console.error('Error loading vouchers:', error)
-        this.vouchers = []
-      } finally {
-        this.vouchersLoading = false
-      }
-    },
-    async loadCoins() {
-      try {
-        const token = localStorage.getItem('token')
-        const response = await this.$http.get('/api/coins', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        this.coins = response.data.coins
-        this.dailyClaimed = response.data.dailyClaimed
-      } catch (error) {
-        console.error('Error loading coins:', error)
-        this.coins = 0
-        this.dailyClaimed = false
-      }
-    },
-    async claimDailyCoins() {
-      try {
-        const token = localStorage.getItem('token')
-        const response = await this.$http.post('/api/coins/claim-daily', {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        this.coins = response.data.coins
-        this.dailyClaimed = true
-        this.$toast?.success('Daily coins claimed!', { position: 'top-right', timeout: 3000 })
-      } catch (error) {
-        console.error('Error claiming daily coins:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to claim daily coins', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    async buyVoucherWithCoins(voucher) {
-      const coinPrice = voucher.fee || 0;
+const showOrderDetail = ref(false)
+const orderDetail = ref(null)
 
-      if (coinPrice > 0 && this.coins < coinPrice) {
-          this.$toast?.error('Not enough coins to buy this voucher.', { position: 'top-right', timeout: 3000 })
-          return
-      }
+const showTrackingModal = ref(false)
+const trackingOrder = ref(null)
 
-      try {
-        const token = localStorage.getItem('token')
-        await this.$http.post(`/api/vouchers/${voucher._id}/acquire`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        
-        this.$toast?.success(coinPrice > 0 ? `Voucher "${voucher.code}" purchased successfully!` : `Voucher "${voucher.code}" acquired successfully!`, { position: 'top-right', timeout: 3000 })
-        
-        // Reload vouchers and coins to reflect new state
-        await this.loadVouchers()
-        await this.loadCoins()
-      } catch (error) {
-        console.error('Error acquiring voucher:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to acquire voucher.', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    getStatusDisplayText(status) {
-      const statusText = {
-        pending: 'Pending',
-        confirmed: 'Confirmed',
-        processing: 'Processing',
-        shipped: 'Shipping',
-        delivered: 'Delivered',
-        cancelled: 'Cancelled',
-        refund_requested: 'Refund',
-        refund_approved: 'Refund Approved',
-        refund_rejected: 'Refund Rejected',
-        dispute_open: 'Dispute - Under Review',
-        dispute_resolved: 'Dispute Resolved',
-        approved: 'Approved',
-        rejected: 'Rejected'
-      }
-      return statusText[status] || status
-    },
-    formatCurrency(value) {
-      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
-    },
-    openReviewModal(product, order) {
-      this.reviewTarget = { ...product, orderId: order._id, orderNumber: order.orderNumber }
-      this.modalReview = { rating: 0, comment: '' }
-      this.modalReviewError = ''
-      this.modalReviewSuccess = ''
-      this.showReviewModal = true
-    },
-    closeReviewModal() {
-      this.showReviewModal = false
-      this.reviewTarget = {}
-      this.modalReview = { rating: 0, comment: '' }
-      this.modalReviewError = ''
-      this.modalReviewSuccess = ''
-    },
-    async submitModalReview() {
-      this.modalReviewError = ''
-      this.modalReviewSuccess = ''
-      this.modalSubmitting = true
+const showRefundModal = ref(false)
+const refundOrder = ref(null)
+const refundReason = ref('Item damaged or broken')
+const refundDescription = ref('')
+const refundReasons = [
+  { value: 'Item damaged or broken', label: 'Item damaged or broken', icon: 'bi bi-box-seam' },
+  { value: 'Item does not match description', label: 'Doesn\'t match description', icon: 'bi bi-exclamation-triangle' },
+  { value: 'Missing quantity/accessories', label: 'Missing items/accessories', icon: 'bi bi-dash-circle' },
+  { value: 'Wrong item received', label: 'Wrong item received', icon: 'bi bi-shuffle' },
+  { value: 'Other', label: 'Other reason', icon: 'bi bi-three-dots' }
+]
 
-      try {
-        const token = localStorage.getItem('token')
-        const productId = this.reviewTarget.productId
-        const orderId = this.reviewTarget.orderId
-        await this.$http.post(`/api/products/${productId}/reviews`, {
-          rating: this.modalReview.rating,
-          comment: this.modalReview.comment,
-          orderId
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+const currentUser = computed(() => store.getters.currentUser)
 
-        this.modalReviewSuccess = 'Review submitted successfully!'
-        this.reviewedKeys = new Set([...this.reviewedKeys, orderId + ':' + productId])
-        // Reload coins to show the 500 reward
-        await this.loadCoins()
-        setTimeout(() => {
-          this.closeReviewModal()
-        }, 1500)
-      } catch (error) {
-        this.modalReviewError = error.response?.data?.message || 'Failed to submit review'
-      } finally {
-        this.modalSubmitting = false
-      }
-    },
-    openTrackingModal(order) {
-      this.trackingOrder = order
-      this.showTrackingModal = true
-    },
-    async requestRefund(order) {
-      if (!confirm('Are you sure you want to request a refund for this order?')) return
-      try {
-        await this.$http.patch(`/api/orders/${order._id}/request-refund`)
-        order.status = 'refund_requested'
-        this.$toast?.success('Refund request submitted successfully.', { position: 'top-right', timeout: 3000 })
-      } catch (error) {
-        console.error('Error requesting refund:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to request refund.', { position: 'top-right', timeout: 3000 })
-      }
-    },
-    async openDispute(order) {
-      if (!confirm('The seller rejected your refund. Do you want to escalate this to admin for review?')) return
-      try {
-        await this.$http.patch(`/api/orders/${order._id}/open-dispute`)
-        order.status = 'dispute_open'
-        this.$toast?.success('Dispute opened. Admin will review your case.', { position: 'top-right', timeout: 3000 })
-      } catch (error) {
-        console.error('Error opening dispute:', error)
-        this.$toast?.error(error.response?.data?.message || 'Failed to open dispute.', { position: 'top-right', timeout: 3000 })
-      }
-    }
+watch(currentUser, (newVal) => {
+  if (newVal) {
+    user.value = { ...newVal }
   }
+}, { deep: true, immediate: true })
+
+const availableDistricts = computed(() => {
+  return locations.districts[selectedCity.value] || []
+})
+
+const availableWards = computed(() => {
+  return locations.wards[selectedDistrict.value] || []
+})
+
+watch(selectedCity, () => {
+  selectedDistrict.value = ''
+  selectedWard.value = ''
+})
+
+watch(selectedDistrict, () => {
+  selectedWard.value = ''
+})
+
+// Queries
+const { data: userData, isLoading: loading, refetch: refetchUser } = useQuery({
+  queryKey: ['me'],
+  queryFn: async () => {
+    if (currentUser.value && currentUser.value.email) return currentUser.value
+    const { data } = await axios.get('/api/users/me')
+    store.commit('SET_USER', data)
+    return data
+  },
+  onSuccess: (data) => {
+    user.value = { ...data }
+  }
+})
+
+const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
+  queryKey: ['myOrders'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/users/me/orders')
+    
+    // Fetch missing images in background
+    const productsToFetch = new Set()
+    data.forEach(order => {
+      order.products.forEach(p => {
+        if (!p.image) productsToFetch.add(p.productId)
+      })
+    })
+
+    for (const productId of productsToFetch) {
+      axios.get(`/api/products/${productId}`).then(res => {
+        const img = res.data.image
+        if (img) {
+          queryClient.setQueryData(['myOrders'], old => {
+            if (!old) return old
+            return old.map(o => ({
+              ...o,
+              products: o.products.map(p => p.productId === productId ? { ...p, image: img } : p)
+            }))
+          })
+        }
+      }).catch(() => {})
+    }
+    
+    return data
+  }
+})
+const orders = computed(() => ordersData.value || [])
+
+const { data: myReviewsData } = useQuery({
+  queryKey: ['myReviews'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/products/reviews/my')
+    return data || []
+  }
+})
+const reviewedKeys = computed(() => {
+  return new Set((myReviewsData.value || []).map(r => r.orderId + ':' + r.productId))
+})
+
+const { data: vouchersData, isLoading: vouchersLoading, refetch: refetchVouchers } = useQuery({
+  queryKey: ['myVouchers'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/vouchers/my-vouchers', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    return data
+  }
+})
+const vouchers = computed(() => vouchersData.value || [])
+
+const { data: coinsData, refetch: refetchCoins } = useQuery({
+  queryKey: ['myCoins'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/coins', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    return data
+  }
+})
+const coins = computed(() => coinsData.value?.coins || 0)
+const dailyClaimed = computed(() => coinsData.value?.dailyClaimed || false)
+
+// Mutations
+const updateProfileMutation = useMutation({
+  mutationFn: async (payload) => {
+    const { data } = await axios.patch('/api/users/me', payload)
+    return data.user
+  },
+  onSuccess: (data) => {
+    store.commit('SET_USER', data)
+    message.value = 'Profile updated successfully!'
+    errorMsg.value = ''
+  },
+  onError: (error) => {
+    errorMsg.value = error.response?.data?.message || 'Failed to update profile.'
+    message.value = ''
+  }
+})
+
+const addAddressMutation = useMutation({
+  mutationFn: async (payload) => {
+    const { data } = await axios.post('/api/users/addresses', payload)
+    return data.addresses
+  },
+  onSuccess: (addresses) => {
+    user.value.addresses = addresses
+    store.commit('SET_USER', { ...user.value, addresses })
+    newAddress.fullName = ''
+    newAddress.phoneNumber = ''
+    newAddress.cityDistrictWard = ''
+    newAddress.streetBuildingHouse = ''
+    newAddress.isDefault = false
+    selectedCity.value = ''
+    selectedDistrict.value = ''
+    selectedWard.value = ''
+    showAddAddress.value = false
+    message.value = 'Address added successfully!'
+    errorMsg.value = ''
+  },
+  onError: (error) => {
+    errorMsg.value = error.response?.data?.message || 'Failed to add address.'
+    message.value = ''
+  }
+})
+
+const setDefaultAddressMutation = useMutation({
+  mutationFn: async ({ index, addressId, payload }) => {
+    const { data } = await axios.put(`/api/users/addresses/${addressId}`, payload)
+    return data.addresses
+  },
+  onSuccess: (addresses) => {
+    user.value.addresses = addresses
+    store.commit('SET_USER', { ...user.value, addresses })
+    message.value = 'Default address updated!'
+    errorMsg.value = ''
+  },
+  onError: (error) => {
+    errorMsg.value = error.response?.data?.message || 'Failed to set default address.'
+    message.value = ''
+  }
+})
+
+const removeAddressMutation = useMutation({
+  mutationFn: async (addressId) => {
+    const { data } = await axios.delete(`/api/users/addresses/${addressId}`)
+    return data.addresses
+  },
+  onSuccess: (addresses) => {
+    user.value.addresses = addresses
+    store.commit('SET_USER', { ...user.value, addresses })
+    message.value = 'Address removed successfully!'
+    errorMsg.value = ''
+  },
+  onError: (error) => {
+    errorMsg.value = error.response?.data?.message || 'Failed to remove address.'
+    message.value = ''
+  }
+})
+
+const claimDailyCoinsMutation = useMutation({
+  mutationFn: async () => {
+    const { data } = await axios.post('/api/coins/claim-daily', {}, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    return data
+  },
+  onSuccess: () => {
+    refetchCoins()
+    proxy.$toast?.success('Daily coins claimed!', { position: 'top-right', timeout: 3000 })
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to claim daily coins', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const buyVoucherMutation = useMutation({
+  mutationFn: async (voucher) => {
+    await axios.post(`/api/vouchers/${voucher._id}/acquire`, {}, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+    return voucher
+  },
+  onSuccess: (voucher) => {
+    const coinPrice = voucher.fee || 0
+    proxy.$toast?.success(coinPrice > 0 ? `Voucher "${voucher.code}" purchased successfully!` : `Voucher "${voucher.code}" acquired successfully!`, { position: 'top-right', timeout: 3000 })
+    refetchVouchers()
+    refetchCoins()
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to acquire voucher.', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const cancelOrderMutation = useMutation({
+  mutationFn: async (orderId) => {
+    await axios.patch(`/api/orders/${orderId}/cancel`)
+  },
+  onSuccess: () => {
+    refetchOrders()
+    proxy.$toast?.success('Order cancelled successfully.', { position: 'top-right', timeout: 3000 })
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to cancel order.', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const confirmReceivedMutation = useMutation({
+  mutationFn: async (orderId) => {
+    await axios.patch(`/api/orders/${orderId}/confirm-received`)
+  },
+  onSuccess: (_, orderId) => {
+    refetchOrders()
+    proxy.$toast?.success('Order marked as received!', { position: 'top-right', timeout: 3000 })
+    const order = orders.value.find(o => o._id === orderId)
+    if (order) {
+      const unreviewedProduct = order.products.find(p => !reviewedKeys.value.has(order._id + ':' + p.productId))
+      if (unreviewedProduct) {
+        openReviewModal(unreviewedProduct, order)
+      }
+    }
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to confirm order.', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const requestRefundMutation = useMutation({
+  mutationFn: async ({ orderId, payload }) => {
+    await axios.patch(`/api/orders/${orderId}/request-refund`, payload)
+  },
+  onSuccess: () => {
+    refetchOrders()
+    proxy.$toast?.success('Refund requested successfully.', { position: 'top-right', timeout: 3000 })
+    closeRefundModal()
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to request refund.', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const openDisputeMutation = useMutation({
+  mutationFn: async (orderId) => {
+    await axios.patch(`/api/orders/${orderId}/open-dispute`)
+  },
+  onSuccess: () => {
+    refetchOrders()
+    proxy.$toast?.success('Dispute opened. Admin will review your case.', { position: 'top-right', timeout: 3000 })
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to open dispute.', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const submitReviewMutation = useMutation({
+  mutationFn: async ({ productId, orderId, rating, comment }) => {
+    await axios.post(`/api/products/${productId}/reviews`, { rating, comment, orderId }, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+  },
+  onSuccess: () => {
+    modalReviewSuccess.value = 'Review submitted successfully!'
+    queryClient.invalidateQueries(['myReviews'])
+    refetchCoins()
+    setTimeout(() => {
+      closeReviewModal()
+    }, 1500)
+  },
+  onError: (error) => {
+    modalReviewError.value = error.response?.data?.message || 'Failed to submit review'
+  }
+})
+
+// Methods
+const loadLocations = async () => {
+  if (locations.cities.length > 0) return
+  locationsLoading.value = true
+  try {
+    const [provincesRes, districtsRes, wardsRes] = await Promise.all([
+      fetch('https://provinces.open-api.vn/api/p/'),
+      fetch('https://provinces.open-api.vn/api/d/'),
+      fetch('https://provinces.open-api.vn/api/w/')
+    ])
+
+    const provinces = await provincesRes.json()
+    const districts = await districtsRes.json()
+    const wards = await wardsRes.json()
+
+    locations.cities = provinces.map(p => p.name).sort()
+    provinceCodes.value = {}
+    provinces.forEach(p => { provinceCodes.value[p.name] = p.code })
+
+    locations.districts = {}
+    districts.forEach(d => {
+      const province = provinces.find(p => p.code === d.province_code)
+      if (province) {
+        if (!locations.districts[province.name]) locations.districts[province.name] = []
+        locations.districts[province.name].push(d.name)
+      }
+    })
+    Object.keys(locations.districts).forEach(p => locations.districts[p].sort())
+
+    districtCodes.value = {}
+    districts.forEach(d => {
+      const province = provinces.find(p => p.code === d.province_code)
+      if (province) {
+        districtCodes.value[`${province.name}-${d.name}`] = d.code
+      }
+    })
+
+    locations.wards = {}
+    wards.forEach(w => {
+      const district = districts.find(d => d.code === w.district_code)
+      if (district) {
+        if (!locations.wards[district.name]) locations.wards[district.name] = []
+        locations.wards[district.name].push(w.name)
+      }
+    })
+    Object.keys(locations.wards).forEach(d => locations.wards[d].sort())
+  } catch (error) {
+    console.error('Error loading locations:', error)
+  } finally {
+    locationsLoading.value = false
+  }
+}
+
+const showAddAddressForm = () => {
+  showAddAddress.value = !showAddAddress.value
+  if (showAddAddress.value) {
+    loadLocations()
+  }
+}
+
+const updateProfile = () => {
+  updating.value = true
+  updateProfileMutation.mutate(user.value, {
+    onSettled: () => { updating.value = false }
+  })
+}
+
+const addAddress = () => {
+  newAddress.cityDistrictWard = `${selectedCity.value}, ${selectedDistrict.value}, ${selectedWard.value}`
+  addAddressMutation.mutate(newAddress)
+}
+
+const setDefaultAddress = (index) => {
+  const addressId = user.value.addresses[index]._id
+  setDefaultAddressMutation.mutate({
+    index,
+    addressId,
+    payload: { ...user.value.addresses[index], isDefault: true }
+  })
+}
+
+const removeAddress = (index) => {
+  if (!confirm('Are you sure you want to remove this address?')) return
+  const addressId = user.value.addresses[index]._id
+  removeAddressMutation.mutate(addressId)
+}
+
+const getStatusClass = (status) => {
+  const classes = {
+    pending: 'status-pending',
+    confirmed: 'status-confirmed',
+    processing: 'status-processing',
+    shipped: 'status-shipped',
+    delivered: 'status-delivered',
+    completed: 'status-completed',
+    cancelled: 'status-cancelled',
+    refund_requested: 'status-refund',
+    refund_approved: 'status-refund',
+    refund_rejected: 'status-cancelled'
+  }
+  return classes[status] || 'status-pending'
+}
+
+const getStatusIcon = (status) => {
+  const icons = {
+    pending: 'bi bi-clock-fill',
+    confirmed: 'bi bi-check-circle-fill',
+    processing: 'bi bi-gear-fill',
+    shipped: 'bi bi-truck',
+    delivered: 'bi bi-box-seam-fill',
+    completed: 'bi bi-check-all',
+    cancelled: 'bi bi-x-circle-fill',
+    refund_requested: 'bi bi-arrow-repeat',
+    refund_approved: 'bi bi-arrow-counterclockwise',
+    refund_rejected: 'bi bi-x-octagon-fill'
+  }
+  return icons[status] || 'bi bi-clock-fill'
+}
+
+const getPaymentIcon = (method) => {
+  const icons = {
+    stripe: 'bi bi-stripe',
+    credit_card: 'bi bi-credit-card-fill',
+    paypal: 'bi bi-paypal',
+    cash_on_delivery: 'bi bi-cash-stack'
+  }
+  return icons[method] || 'bi bi-wallet2'
+}
+
+const getPaymentLabel = (method) => {
+  const labels = {
+    stripe: 'Stripe',
+    credit_card: 'Credit Card',
+    paypal: 'PayPal',
+    cash_on_delivery: 'Cash on Delivery'
+  }
+  return labels[method] || method || 'COD'
+}
+
+const viewOrderDetails = (order) => {
+  orderDetail.value = order
+  showOrderDetail.value = true
+}
+
+const cancelOrder = (order) => {
+  if (!confirm('Are you sure you want to cancel this order?')) return
+  cancelOrderMutation.mutate(order._id)
+}
+
+const confirmReceivedAndReview = (order) => {
+  if (!confirm('Confirm you have received this order?')) return
+  confirmReceivedMutation.mutate(order._id)
+}
+
+const openRefundModal = (order) => {
+  refundOrder.value = order
+  refundReason.value = 'Item damaged or broken'
+  refundDescription.value = ''
+  showRefundModal.value = true
+}
+
+const closeRefundModal = () => {
+  showRefundModal.value = false
+  refundOrder.value = null
+}
+
+const submitRefundRequest = () => {
+  if (!refundOrder.value) return
+  requestRefundMutation.mutate({
+    orderId: refundOrder.value._id,
+    payload: { reason: refundReason.value, description: refundDescription.value }
+  })
+}
+
+const contactSeller = (order) => {
+  const firstProduct = order.products?.[0]
+  const sellerId = firstProduct?.sellerId
+  const sellerName = firstProduct?.sellerName || 'Seller'
+  if (!sellerId) {
+    proxy.$toast?.error('Seller info not available.', { position: 'top-right', timeout: 2000 })
+    return
+  }
+  const productContext = firstProduct ? {
+    productId: firstProduct.productId,
+    name: firstProduct.productName || firstProduct.name || 'Product',
+    image: (firstProduct.images && firstProduct.images[0]) || firstProduct.image || '',
+    price: firstProduct.price
+  } : null
+  window.dispatchEvent(new CustomEvent('open-seller-chat', {
+    detail: { sellerId, sellerName, productContext }
+  }))
+}
+
+const claimDailyCoins = () => {
+  claimDailyCoinsMutation.mutate()
+}
+
+const buyVoucherWithCoins = (voucher) => {
+  const coinPrice = voucher.fee || 0
+  if (coinPrice > 0 && coins.value < coinPrice) {
+    proxy.$toast?.error('Not enough coins to buy this voucher.', { position: 'top-right', timeout: 3000 })
+    return
+  }
+  buyVoucherMutation.mutate(voucher)
+}
+
+const getStatusDisplayText = (status) => {
+  const statusText = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    processing: 'Processing',
+    shipped: 'Shipping',
+    delivered: 'Delivered',
+    cancelled: 'Cancelled',
+    refund_requested: 'Refund',
+    refund_approved: 'Refund Approved',
+    refund_rejected: 'Refund Rejected',
+    dispute_open: 'Dispute - Under Review',
+    dispute_resolved: 'Dispute Resolved',
+    approved: 'Approved',
+    rejected: 'Rejected'
+  }
+  return statusText[status] || status
+}
+
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+}
+
+const openReviewModal = (product, order) => {
+  reviewTarget.value = { ...product, orderId: order._id, orderNumber: order.orderNumber }
+  modalReview.rating = 0
+  modalReview.comment = ''
+  modalReviewError.value = ''
+  modalReviewSuccess.value = ''
+  showReviewModal.value = true
+}
+
+const closeReviewModal = () => {
+  showReviewModal.value = false
+  reviewTarget.value = {}
+  modalReview.rating = 0
+  modalReview.comment = ''
+  modalReviewError.value = ''
+  modalReviewSuccess.value = ''
+}
+
+const submitModalReview = () => {
+  modalReviewError.value = ''
+  modalReviewSuccess.value = ''
+  modalSubmitting.value = true
+  submitReviewMutation.mutate({
+    productId: reviewTarget.value.productId,
+    orderId: reviewTarget.value.orderId,
+    rating: modalReview.rating,
+    comment: modalReview.comment
+  }, {
+    onSettled: () => { modalSubmitting.value = false }
+  })
+}
+
+const openTrackingModal = (order) => {
+  trackingOrder.value = order
+  showTrackingModal.value = true
+}
+
+const requestRefund = (order) => {
+  if (!confirm('Are you sure you want to request a refund for this order?')) return
+  requestRefundMutation.mutate({ orderId: order._id, payload: {} })
+}
+
+const openDispute = (order) => {
+  if (!confirm('The seller rejected your refund. Do you want to escalate this to admin for review?')) return
+  openDisputeMutation.mutate(order._id)
 }
 </script>
 

@@ -222,132 +222,135 @@
   </div>
 </template>
 
-<script>
-import { mapGetters, mapActions } from 'vuex'
+<script setup>
+import { ref, computed, onMounted, getCurrentInstance } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import { useCart, useUpdateCartItem, useRemoveCartItem } from '../composables/useCart'
 
-export default {
-  name: 'Cart',
-  data() {
-    return {
-      selectedIds: []
-    }
-  },
-  computed: {
-    shippingCost() {
-      return this.selectedIds.length > 0 ? 5.99 : 0
-    },
-    ...mapGetters(['cartItems', 'cartItemCount', 'isAuthenticated']),
-    groupedCartItems() {
-      const groups = new Map()
-      this.cartItems.forEach(item => {
-        const sellerKey = item.sellerId || item.sellerName || 'unknown-seller'
-        if (!groups.has(sellerKey)) {
-          groups.set(sellerKey, {
-            sellerKey,
-            sellerName: this.getSellerDisplayName(item.sellerName),
-            items: []
-          })
-        }
-        groups.get(sellerKey).items.push(item)
+const route = useRoute()
+const router = useRouter()
+const store = useStore()
+const { proxy } = getCurrentInstance()
+
+const { cartItems, cartItemCount } = useCart()
+const updateCartItemMutation = useUpdateCartItem()
+const removeCartItemMutation = useRemoveCartItem()
+
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+
+const selectedIds = ref([])
+
+const shippingCost = computed(() => selectedIds.value.length > 0 ? 5.99 : 0)
+
+const getSellerDisplayName = (sellerName) => {
+  if (!sellerName || typeof sellerName !== 'string') return 'Unknown seller'
+  const trimmedName = sellerName.trim()
+  if (!trimmedName) return 'Unknown seller'
+  if (!trimmedName.includes('@')) return trimmedName
+
+  const localPart = trimmedName.split('@')[0] || ''
+  const normalized = localPart
+    .replace(/[._-]+/g, ' ')
+    .replace(/\d+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalized) return 'Unknown seller'
+
+  return normalized
+    .split(' ')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+const groupedCartItems = computed(() => {
+  const groups = new Map()
+  cartItems.value.forEach(item => {
+    const sellerKey = item.sellerId || item.sellerName || 'unknown-seller'
+    if (!groups.has(sellerKey)) {
+      groups.set(sellerKey, {
+        sellerKey,
+        sellerName: getSellerDisplayName(item.sellerName),
+        items: []
       })
-      return Array.from(groups.values())
-    },
-    selectedItems() {
-      return this.cartItems.filter(i => this.selectedIds.includes(i.cartItemKey))
-    },
-    selectedItemCount() {
-      return this.selectedItems.reduce((t, i) => t + i.quantity, 0)
-    },
-    selectedSubtotal() {
-      return this.selectedItems.reduce((t, i) => t + (i.price * i.quantity), 0)
-    },
-    totalAmount() {
-      return this.selectedSubtotal
     }
-  },
-  mounted() {
-    const id = this.$route.query?.select
-    if (!id) return
+    groups.get(sellerKey).items.push(item)
+  })
+  return Array.from(groups.values())
+})
 
-    const matchingItem = this.cartItems.find(i => i.cartItemKey === id) || this.cartItems.find(i => i._id === id)
-    if (matchingItem && !this.selectedIds.includes(matchingItem.cartItemKey)) {
-      this.selectedIds.push(matchingItem.cartItemKey)
-    }
-  },
-  methods: {
-    ...mapActions(['removeFromCart', 'updateCartItemQuantity']),
-    getSellerDisplayName(sellerName) {
-      if (!sellerName || typeof sellerName !== 'string') {
-        return 'Unknown seller'
-      }
-      const trimmedName = sellerName.trim()
-      if (!trimmedName) {
-        return 'Unknown seller'
-      }
-      if (!trimmedName.includes('@')) {
-        return trimmedName
-      }
+const selectedItems = computed(() => {
+  return cartItems.value.filter(i => selectedIds.value.includes(i.cartItemKey))
+})
 
-      const localPart = trimmedName.split('@')[0] || ''
-      const normalized = localPart
-        .replace(/[._-]+/g, ' ')
-        .replace(/\d+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-      if (!normalized) {
-        return 'Unknown seller'
-      }
+const selectedItemCount = computed(() => {
+  return selectedItems.value.reduce((t, i) => t + i.quantity, 0)
+})
 
-      return normalized
-        .split(' ')
-        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ')
-    },
-    getGroupItemIds(group) {
-      return [...new Set(group.items.map(item => item.cartItemKey))]
-    },
-    isGroupFullySelected(group) {
-      const ids = this.getGroupItemIds(group)
-      return ids.length > 0 && ids.every(id => this.selectedIds.includes(id))
-    },
-    toggleGroupSelection(group, isChecked) {
-      const ids = this.getGroupItemIds(group)
-      if (isChecked) {
-        this.selectedIds = [...new Set([...this.selectedIds, ...ids])]
-      } else {
-        this.selectedIds = this.selectedIds.filter(id => !ids.includes(id))
-      }
-    },
-    updateQuantity(item, quantity) {
-      if (quantity < 1) {
-        this.removeFromCart(item)
-        this.$toast.info('Item has been removed from your cart.', {
-          position: 'top-right',
-          timeout: 3000
-        })
-      } else {
-        this.updateCartItemQuantity({ item, quantity })
-      }
-    },
-    removeItem(item) {
-      this.removeFromCart(item)
-      this.$toast.info('Item has been removed from your cart.', {
-        position: 'top-right',
-        timeout: 3000
-      })
-    },
-    proceedToCheckout() {
-      if (this.selectedIds.length === 0) {
-        this.$toast.warning('Please select items to checkout.', {
-          position: 'top-right',
-          timeout: 3000
-        })
-        return
-      }
-      const encodedIds = this.selectedIds.map(id => encodeURIComponent(id))
-      this.$router.push({ path: '/checkout', query: { items: encodedIds.join(',') } })
-    }
+const selectedSubtotal = computed(() => {
+  return selectedItems.value.reduce((t, i) => t + (i.price * i.quantity), 0)
+})
+
+const totalAmount = computed(() => selectedSubtotal.value)
+
+onMounted(() => {
+  const id = route.query?.select
+  if (!id) return
+
+  const matchingItem = cartItems.value.find(i => i.cartItemKey === id) || cartItems.value.find(i => i._id === id)
+  if (matchingItem && !selectedIds.value.includes(matchingItem.cartItemKey)) {
+    selectedIds.value.push(matchingItem.cartItemKey)
   }
+})
+
+const getGroupItemIds = (group) => {
+  return [...new Set(group.items.map(item => item.cartItemKey))]
+}
+
+const isGroupFullySelected = (group) => {
+  const ids = getGroupItemIds(group)
+  return ids.length > 0 && ids.every(id => selectedIds.value.includes(id))
+}
+
+const toggleGroupSelection = (group, isChecked) => {
+  const ids = getGroupItemIds(group)
+  if (isChecked) {
+    selectedIds.value = [...new Set([...selectedIds.value, ...ids])]
+  } else {
+    selectedIds.value = selectedIds.value.filter(id => !ids.includes(id))
+  }
+}
+
+const updateQuantity = (item, quantity) => {
+  if (quantity < 1) {
+    removeCartItemMutation.mutate({ productId: item._id, selectedOptions: item.selectedOptions })
+    proxy.$toast.info('Item has been removed from your cart.', {
+      position: 'top-right',
+      timeout: 3000
+    })
+  } else {
+    updateCartItemMutation.mutate({ item, quantity })
+  }
+}
+
+const removeItem = (item) => {
+  removeCartItemMutation.mutate({ productId: item._id, selectedOptions: item.selectedOptions })
+  proxy.$toast.info('Item has been removed from your cart.', {
+    position: 'top-right',
+    timeout: 3000
+  })
+}
+
+const proceedToCheckout = () => {
+  if (selectedIds.value.length === 0) {
+    proxy.$toast.warning('Please select items to checkout.', {
+      position: 'top-right',
+      timeout: 3000
+    })
+    return
+  }
+  const encodedIds = selectedIds.value.map(id => encodeURIComponent(id))
+  router.push({ path: '/checkout', query: { items: encodedIds.join(',') } })
 }
 </script>
 

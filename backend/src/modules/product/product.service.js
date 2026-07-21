@@ -246,6 +246,29 @@ const getMyReviews = async (userId) => {
     return await Review.find({ userId }).sort({ createdAt: -1 });
 };
 
+const getShopPublicProducts = async (sellerId) => {
+    const Product = getProductModel();
+    const products = await Product.find({ sellerId, status: 'approved', isActive: true }).sort({ createdAt: -1 });
+
+    let seller = null;
+    try {
+        const User = getUserModel();
+        const userDoc = await User.findById(sellerId).select('firstName lastName avatar createdAt');
+        if (userDoc) {
+            seller = {
+                id: userDoc._id,
+                name: `${userDoc.firstName} ${userDoc.lastName}`,
+                avatar: userDoc.avatar || '',
+                joinedAt: userDoc.createdAt
+            };
+        }
+    } catch (e) {
+        // Seller info not available, continue with products only
+    }
+
+    return { seller, products };
+};
+
 module.exports = {
     getApprovedProducts,
     getSellerProducts,
@@ -261,5 +284,6 @@ module.exports = {
     getProductReviews,
     createReview,
     deleteReview,
-    getMyReviews
+    getMyReviews,
+    getShopPublicProducts
 };

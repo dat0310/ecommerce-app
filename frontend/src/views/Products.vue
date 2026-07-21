@@ -201,226 +201,188 @@
   </div>
 </template>
 
-<script>
-import { mapActions, mapGetters } from 'vuex'
+<script setup>
+import { ref, computed, getCurrentInstance, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import { useProducts } from '../composables/useProducts'
+import { useAddToCart } from '../composables/useCart'
 
-export default {
-  name: 'Products',
-  props: {
-    limit: {
-      type: Number,
-      default: null
-    }
-  },
-  data() {
-    return {
-      loading: true,
-      products: [],
-      selectedCategory: '',
-      sortBy: 'name',
-      viewMode: 'grid',
-      currentPage: 1,
-      itemsPerPage: 9,
-      wishlistIds: []
-    }
-  },
-  computed: {
-    ...mapGetters(['searchQuery', 'isAuthenticated']),
-    categories() {
-      const categories = new Set()
-      this.products.forEach(product => {
-        if (product.category) {
-          categories.add(product.category)
-        }
-      })
-      return Array.from(categories).sort()
-    },
-    filteredProducts() {
-      let filtered = this.products
-      
-      // Filter by category
-      if (this.selectedCategory) {
-        filtered = filtered.filter(product => product.category === this.selectedCategory)
-      }
-      
-      // Filter by search query
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(product => 
-          product.name.toLowerCase().includes(query)
-        )
-      }
-      
-      // Sort products
-      filtered = this.sortProducts(filtered)
-      
-      return filtered
-    },
-    paginatedProducts() {
-      if (this.limit) {
-        return this.filteredProducts.slice(0, this.limit);
-      }
-      const start = (this.currentPage - 1) * this.itemsPerPage;
-      const end = start + this.itemsPerPage;
-      return this.filteredProducts.slice(start, end);
-    },
-    totalPages() {
-      return Math.ceil(this.filteredProducts.length / this.itemsPerPage)
-    },
-    visiblePages() {
-      const pages = []
-      const start = Math.max(1, this.currentPage - 2)
-      const end = Math.min(this.totalPages, this.currentPage + 2)
-      
-      for (let i = start; i <= end; i++) {
-        pages.push(i)
-      }
-      return pages
-    }
-  },
-  async created() {
-    if (this.$route.query.category) {
-      this.selectedCategory = this.$route.query.category;
-    }
-    if (this.$route.query.q) {
-      this.searchQuery = this.$route.query.q;
-    }
-    try {
-      const response = await this.$http.get('/api/products')
-      this.products = response.data
-      this.loadWishlist()
-    } catch (error) {
-      console.error('Error fetching products:', error)
-      this.$toast.error('Failed to load products. Please try again later.', {
-        position: 'top-right',
-        timeout: 3000
-      })
-    } finally {
-      this.loading = false
-    }
-  },
-  methods: {
-    ...mapActions(['addToCart', 'updateSearchQuery']),
-    hasVariants(product) {
-      return product && product.variants && product.variants.length > 0
-    },
-    handleAddToCart(product) {
-      if (!product || product.stock === 0) return
-      if (!this.isAuthenticated) {
-        this.$toast.error('Please log in to add items to cart.', {
-          position: 'top-right',
-          timeout: 3000
-        })
-        this.$router.push('/login')
-        return
-      }
-      if (this.hasVariants(product)) {
-        this.$router.push('/products/' + product._id)
-        return
-      }
-      this.addToCart(product)
-      this.$toast && this.$toast.success('Added to cart', {
-        position: 'top-right',
-        timeout: 2000
-      })
-    },
-    loadWishlist() {
-      try {
-        const raw = localStorage.getItem('wishlist')
-        const items = raw ? JSON.parse(raw) : []
-        this.wishlistIds = items.map(item => item._id)
-      } catch (_) {
-        this.wishlistIds = []
-      }
-    },
-    saveWishlist(items) {
-      localStorage.setItem('wishlist', JSON.stringify(items))
-    },
-    isWishlisted(productId) {
-      return this.wishlistIds.includes(productId)
-    },
-    toggleWishlist(product) {
-      if (!product) return
-      // read current list
-      let items = []
-      try {
-        items = JSON.parse(localStorage.getItem('wishlist') || '[]')
-      } catch (_) {
-        items = []
-      }
-      const index = items.findIndex(it => it._id === product._id)
-      if (index >= 0) {
-        items.splice(index, 1)
-        this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
-      } else {
-        const minimal = { _id: product._id, name: product.name, price: product.price, image: (product.images && product.images[0]) || product.image || '' }
-        items.push(minimal)
-        this.$toast && this.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
-      }
-      this.saveWishlist(items)
-      this.wishlistIds = items.map(it => it._id)
-      window.dispatchEvent(new Event('wishlist-updated'))
-    },
-    truncateText(text, length) {
-      if (!text) return ''
-      if (text.length > length) {
-        return text.substring(0, length) + '...'
-      }
-      return text
-    },
-    getDisplayPrice(product) {
-      if (product.productCombinations && product.productCombinations.length > 0) {
-        const prices = product.productCombinations.map(c => c.price)
-        const minPrice = Math.min(...prices)
-        const maxPrice = Math.max(...prices)
-        if (minPrice === maxPrice) return `$${minPrice}`
-        return `$${minPrice} - $${maxPrice}`
-      }
-      return `$${product.price}`
-    },
-    sortProducts(products) {
-      const sorted = [...products]
-      
-      switch (this.sortBy) {
-        case 'price-low':
-          return sorted.sort((a, b) => a.price - b.price)
-        case 'price-high':
-          return sorted.sort((a, b) => b.price - a.price)
-        case 'newest':
-          return sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-        case 'name':
-        default:
-          return sorted.sort((a, b) => a.name.localeCompare(b.name))
-      }
-    },
-    clearFilters() {
-      this.selectedCategory = ''
-      this.searchQuery = ''
-      this.sortBy = 'name'
-      this.currentPage = 1
-      if (this.$route.query.q || this.$route.query.category) {
-        this.$router.push({ name: 'Products' });
-      }
-    }
-  },
-  watch: {
-    '$route.query.category'(newCategory) {
-      this.selectedCategory = newCategory || '';
-    },
-    '$route.query.q'(newQuery) {
-      this.searchQuery = newQuery || '';
-    },
-    selectedCategory() {
-      this.currentPage = 1
-    },
-    searchQuery() {
-      this.currentPage = 1
-    },
-    sortBy() {
-      this.currentPage = 1
-    }
+const props = defineProps({
+  limit: {
+    type: Number,
+    default: null
+  }
+})
+
+const route = useRoute()
+const router = useRouter()
+const store = useStore()
+const { proxy } = getCurrentInstance()
+
+const { data: products, isLoading: loading } = useProducts()
+const addToCartMutation = useAddToCart()
+
+const searchQuery = computed(() => store.getters.searchQuery)
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+
+const selectedCategory = ref(route.query.category || '')
+const sortBy = ref('name')
+const viewMode = ref('grid')
+const currentPage = ref(1)
+const itemsPerPage = 9
+const wishlistIds = ref([])
+
+const categories = computed(() => {
+  const cats = new Set()
+  if (products.value) {
+    products.value.forEach(product => {
+      if (product.category) cats.add(product.category)
+    })
+  }
+  return Array.from(cats).sort()
+})
+
+const sortProducts = (items) => {
+  const sorted = [...items]
+  switch (sortBy.value) {
+    case 'price-low': return sorted.sort((a, b) => a.price - b.price)
+    case 'price-high': return sorted.sort((a, b) => b.price - a.price)
+    case 'newest': return sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    case 'name':
+    default: return sorted.sort((a, b) => a.name.localeCompare(b.name))
   }
 }
+
+const filteredProducts = computed(() => {
+  let filtered = products.value || []
+
+  if (selectedCategory.value) {
+    filtered = filtered.filter(product => product.category === selectedCategory.value)
+  }
+
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(product => product.name.toLowerCase().includes(query))
+  }
+
+  return sortProducts(filtered)
+})
+
+const paginatedProducts = computed(() => {
+  if (props.limit) return filteredProducts.value.slice(0, props.limit)
+  const start = (currentPage.value - 1) * itemsPerPage
+  const end = start + itemsPerPage
+  return filteredProducts.value.slice(start, end)
+})
+
+const totalPages = computed(() => Math.ceil(filteredProducts.value.length / itemsPerPage))
+
+const visiblePages = computed(() => {
+  const pages = []
+  const start = Math.max(1, currentPage.value - 2)
+  const end = Math.min(totalPages.value, currentPage.value + 2)
+  for (let i = start; i <= end; i++) {
+    pages.push(i)
+  }
+  return pages
+})
+
+const loadWishlist = () => {
+  try {
+    const raw = localStorage.getItem('wishlist')
+    const items = raw ? JSON.parse(raw) : []
+    wishlistIds.value = items.map(item => item._id)
+  } catch (_) {
+    wishlistIds.value = []
+  }
+}
+
+const saveWishlist = (items) => {
+  localStorage.setItem('wishlist', JSON.stringify(items))
+}
+
+const isWishlisted = (productId) => wishlistIds.value.includes(productId)
+
+const toggleWishlist = (product) => {
+  if (!product) return
+  let items = []
+  try {
+    items = JSON.parse(localStorage.getItem('wishlist') || '[]')
+  } catch (_) {
+    items = []
+  }
+  const index = items.findIndex(it => it._id === product._id)
+  if (index >= 0) {
+    items.splice(index, 1)
+    proxy.$toast && proxy.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1800 })
+  } else {
+    const minimal = { _id: product._id, name: product.name, price: product.price, image: (product.images && product.images[0]) || product.image || '' }
+    items.push(minimal)
+    proxy.$toast && proxy.$toast.success('Added to wishlist', { position: 'top-right', timeout: 1800 })
+  }
+  saveWishlist(items)
+  wishlistIds.value = items.map(it => it._id)
+  window.dispatchEvent(new Event('wishlist-updated'))
+}
+
+const hasVariants = (product) => product && product.variants && product.variants.length > 0
+
+const handleAddToCart = (product) => {
+  if (!product || product.stock === 0) return
+  if (!isAuthenticated.value) {
+    proxy.$toast.error('Please log in to add items to cart.', { position: 'top-right', timeout: 3000 })
+    router.push('/login')
+    return
+  }
+  if (hasVariants(product)) {
+    router.push('/products/' + product._id)
+    return
+  }
+  addToCartMutation.mutate({ productId: product._id, quantity: 1, selectedOptions: {} })
+  proxy.$toast && proxy.$toast.success('Added to cart', { position: 'top-right', timeout: 2000 })
+}
+
+const truncateText = (text, length) => {
+  if (!text) return ''
+  if (text.length > length) return text.substring(0, length) + '...'
+  return text
+}
+
+const getDisplayPrice = (product) => {
+  if (product.productCombinations && product.productCombinations.length > 0) {
+    const prices = product.productCombinations.map(c => c.price)
+    const minPrice = Math.min(...prices)
+    const maxPrice = Math.max(...prices)
+    if (minPrice === maxPrice) return `$${minPrice}`
+    return `$${minPrice} - $${maxPrice}`
+  }
+  return `$${product.price}`
+}
+
+const clearFilters = () => {
+  selectedCategory.value = ''
+  store.dispatch('updateSearchQuery', '')
+  sortBy.value = 'name'
+  currentPage.value = 1
+  if (route.query.q || route.query.category) {
+    router.push({ name: 'Products' }).catch(() => {})
+  }
+}
+
+// Init
+loadWishlist()
+
+// Watchers
+watch(() => route.query.category, (newCategory) => {
+  selectedCategory.value = newCategory || ''
+})
+watch(() => route.query.q, (newQuery) => {
+  if (newQuery) store.dispatch('updateSearchQuery', newQuery)
+})
+watch(selectedCategory, () => { currentPage.value = 1 })
+watch(searchQuery, () => { currentPage.value = 1 })
+watch(sortBy, () => { currentPage.value = 1 })
 </script>
 
 <style scoped>

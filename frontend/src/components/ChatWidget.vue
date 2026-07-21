@@ -177,367 +177,377 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import axios from 'axios'
 import { io } from 'socket.io-client'
 
-export default {
-  name: 'ChatWidget',
-  props: {
-    sellerId: { type: String, default: null },
-    sellerName: { type: String, default: 'Seller' },
-    embedded: { type: Boolean, default: false },
-    productContext: { type: Object, default: null }
-  },
-  data() {
-    return {
-      isOpen: false,
-      socket: null,
-      conversations: [],
-      activeConversation: null,
-      messages: [],
-      newMessage: '',
-      selectedFiles: [],
-      loadingConversations: false,
-      loadingMessages: false,
-      isPartnerTyping: false,
-      typingTimeout: null,
-      previewImage: null,
-      totalUnread: 0,
-      showProductCard: true,
-      currentProductContext: null
+const props = defineProps({
+  sellerId: { type: String, default: null },
+  sellerName: { type: String, default: 'Seller' },
+  embedded: { type: Boolean, default: false },
+  productContext: { type: Object, default: null }
+})
+
+const store = useStore()
+const router = useRouter()
+const toast = useToast()
+
+const isOpen = ref(false)
+const socket = ref(null)
+const conversations = ref([])
+const activeConversation = ref(null)
+const messages = ref([])
+const newMessage = ref('')
+const selectedFiles = ref([])
+const loadingConversations = ref(false)
+const loadingMessages = ref(false)
+const isPartnerTyping = ref(false)
+const typingTimeout = ref(null)
+const previewImage = ref(null)
+const totalUnread = ref(0)
+const showProductCard = ref(true)
+const currentProductContext = ref(null)
+
+const messagesContainer = ref(null)
+const fileInput = ref(null)
+
+const currentUserId = computed(() => store.getters.currentUser?.id || store.getters.currentUser?._id)
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+
+const canSend = computed(() => {
+  return (newMessage.value.trim() || selectedFiles.value.length > 0) && !loadingMessages.value
+})
+
+const chatPartnerName = computed(() => {
+  if (!activeConversation.value) return ''
+  return getPartnerName(activeConversation.value)
+})
+
+watch(isAuthenticated, (val) => {
+  if (val) connectSocket()
+  else disconnectSocket()
+})
+
+watch(() => props.productContext, (val) => {
+  if (val) {
+    currentProductContext.value = val
+    showProductCard.value = true
+  }
+})
+
+const connectSocket = () => {
+  if (socket.value) return
+  const token = localStorage.getItem('token')
+  if (!token) return
+
+  const baseURL = axios.defaults.baseURL || 'http://localhost:3000'
+  socket.value = io(baseURL, {
+    auth: { token },
+    transports: ['websocket', 'polling']
+  })
+
+  socket.value.on('connect', () => {
+    console.log('Chat socket connected')
+    socket.value.emit('joinConversations')
+  })
+
+  socket.value.on('receiveMessage', (message) => {
+    if (activeConversation.value && message.conversationId === activeConversation.value._id) {
+      messages.value.push(message)
+      nextTick(() => scrollToBottom())
     }
-  },
-  computed: {
-    currentUserId() {
-      return this.$store.getters.currentUser?.id || this.$store.getters.currentUser?._id
-    },
-    isAuthenticated() {
-      return this.$store.getters.isAuthenticated
-    },
-    canSend() {
-      return (this.newMessage.trim() || this.selectedFiles.length > 0) && !this.loadingMessages
-    },
-    chatPartnerName() {
-      if (!this.activeConversation) return ''
-      return this.getPartnerName(this.activeConversation)
+    fetchConversations()
+  })
+
+  socket.value.on('conversationUpdated', () => {
+    fetchConversations()
+  })
+
+  socket.value.on('userTyping', ({ conversationId }) => {
+    if (activeConversation.value && conversationId === activeConversation.value._id) {
+      isPartnerTyping.value = true
     }
-  },
-  watch: {
-    isAuthenticated(val) {
-      if (val) this.connectSocket()
-      else this.disconnectSocket()
-    },
-    productContext(val) {
-      if (val) {
-        this.currentProductContext = val
-        this.showProductCard = true
-      }
+  })
+
+  socket.value.on('userStopTyping', ({ conversationId }) => {
+    if (activeConversation.value && conversationId === activeConversation.value._id) {
+      isPartnerTyping.value = false
     }
-  },
-  mounted() {
-    if (this.productContext) {
-      this.currentProductContext = this.productContext
-    }
-    if (this.isAuthenticated) {
-      this.connectSocket()
-    }
-    if (this.embedded) {
-      this.openChat()
-    }
-  },
-  beforeUnmount() {
-    this.disconnectSocket()
-  },
-  methods: {
-    connectSocket() {
-      if (this.socket) return
-      const token = localStorage.getItem('token')
-      if (!token) return
+  })
 
-      const baseURL = axios.defaults.baseURL || 'http://localhost:3000'
-      this.socket = io(baseURL, {
-        auth: { token },
-        transports: ['websocket', 'polling']
-      })
+  socket.value.on('connect_error', (err) => {
+    console.error('Socket connection error:', err.message)
+  })
+}
 
-      this.socket.on('connect', () => {
-        console.log('Chat socket connected')
-        this.socket.emit('joinConversations')
-      })
-
-      this.socket.on('receiveMessage', (message) => {
-        if (this.activeConversation && message.conversationId === this.activeConversation._id) {
-          this.messages.push(message)
-          this.$nextTick(() => this.scrollToBottom())
-        }
-        this.fetchConversations()
-      })
-
-      this.socket.on('conversationUpdated', () => {
-        this.fetchConversations()
-      })
-
-      this.socket.on('userTyping', ({ conversationId }) => {
-        if (this.activeConversation && conversationId === this.activeConversation._id) {
-          this.isPartnerTyping = true
-        }
-      })
-
-      this.socket.on('userStopTyping', ({ conversationId }) => {
-        if (this.activeConversation && conversationId === this.activeConversation._id) {
-          this.isPartnerTyping = false
-        }
-      })
-
-      this.socket.on('connect_error', (err) => {
-        console.error('Socket connection error:', err.message)
-      })
-    },
-
-    disconnectSocket() {
-      if (this.socket) {
-        this.socket.disconnect()
-        this.socket = null
-      }
-    },
-
-    async openChat() {
-      if (!this.isAuthenticated) {
-        this.$toast?.error('Please log in to use chat.')
-        this.$router.push('/login')
-        return
-      }
-      this.isOpen = true
-
-      if (this.sellerId) {
-        await this.startConversationWith(this.sellerId, this.sellerName)
-        if (this.currentProductContext) {
-          this.showProductCard = true
-        }
-      } else {
-        await this.fetchConversations()
-      }
-    },
-
-    closeChat() {
-      this.isOpen = false
-      this.activeConversation = null
-      this.messages = []
-      this.currentProductContext = null
-    },
-
-    backToList() {
-      this.activeConversation = null
-      this.messages = []
-      this.currentProductContext = null
-      this.fetchConversations()
-    },
-
-    async fetchConversations() {
-      this.loadingConversations = true
-      try {
-        const res = await axios.get('/api/chat/conversations')
-        this.conversations = res.data
-        this.calculateTotalUnread()
-      } catch (err) {
-        console.error('Error fetching conversations:', err)
-      } finally {
-        this.loadingConversations = false
-      }
-    },
-
-    calculateTotalUnread() {
-      this.totalUnread = this.conversations.reduce((sum, conv) => {
-        return sum + this.getUnreadCount(conv)
-      }, 0)
-    },
-
-    async startConversationWith(sellerId, sellerName) {
-      try {
-        const res = await axios.post('/api/chat/conversations', { sellerId, sellerName })
-        this.activeConversation = res.data
-        if (this.socket) {
-          this.socket.emit('joinRoom', res.data._id)
-        }
-        await this.fetchMessages()
-      } catch (err) {
-        console.error('Error starting conversation:', err)
-      }
-    },
-
-    async openConversation(conv) {
-      this.activeConversation = conv
-      if (this.socket) {
-        this.socket.emit('joinRoom', conv._id)
-      }
-      await this.fetchMessages()
-    },
-
-    async fetchMessages() {
-      if (!this.activeConversation) return
-      this.loadingMessages = true
-      try {
-        const res = await axios.get(`/api/chat/conversations/${this.activeConversation._id}/messages`)
-        this.messages = res.data.messages || []
-        this.$nextTick(() => this.scrollToBottom())
-        this.fetchConversations()
-      } catch (err) {
-        console.error('Error fetching messages:', err)
-      } finally {
-        this.loadingMessages = false
-      }
-    },
-
-    async sendMessage() {
-      if (!this.canSend || !this.activeConversation) return
-
-      let attachments = []
-
-      if (this.selectedFiles.length > 0) {
-        attachments = await this.uploadFiles()
-        if (!attachments) return
-      }
-
-      const messageType = attachments.length > 0
-        ? (attachments.some(a => a.mimeType?.startsWith('image/')) ? 'image' : 'file')
-        : 'text'
-
-      const payload = {
-        conversationId: this.activeConversation._id,
-        text: this.newMessage.trim(),
-        messageType,
-        attachments
-      }
-
-      // Attach product context to this message if one is active
-      if (this.currentProductContext) {
-        payload.productContext = { ...this.currentProductContext }
-        // Clear product context after attaching to the first sent message
-        this.currentProductContext = null
-        this.showProductCard = false
-      }
-
-      this.socket.emit('sendMessage', payload)
-
-      this.newMessage = ''
-      this.selectedFiles = []
-      this.socket.emit('stopTyping', { conversationId: this.activeConversation._id })
-    },
-
-    async uploadFiles() {
-      const formData = new FormData()
-      this.selectedFiles.forEach(f => formData.append('files', f.raw))
-
-      try {
-        const res = await axios.post('/api/chat/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        return res.data.attachments
-      } catch (err) {
-        console.error('Upload error:', err)
-        this.$toast?.error('Failed to upload files.')
-        return null
-      }
-    },
-
-    triggerFileInput() {
-      this.$refs.fileInput.click()
-    },
-
-    handleFileSelect(event) {
-      const files = Array.from(event.target.files)
-      files.forEach(file => {
-        const item = { raw: file, name: file.name, type: file.type, preview: null }
-        if (file.type.startsWith('image/')) {
-          item.preview = URL.createObjectURL(file)
-        }
-        this.selectedFiles.push(item)
-      })
-      event.target.value = ''
-    },
-
-    removeFile(index) {
-      const file = this.selectedFiles[index]
-      if (file.preview) URL.revokeObjectURL(file.preview)
-      this.selectedFiles.splice(index, 1)
-    },
-
-    handleTyping() {
-      if (!this.activeConversation || !this.socket) return
-      const currentConvId = this.activeConversation._id
-      this.socket.emit('typing', { conversationId: currentConvId })
-      clearTimeout(this.typingTimeout)
-      this.typingTimeout = setTimeout(() => {
-        if (this.socket) {
-          this.socket.emit('stopTyping', { conversationId: currentConvId })
-        }
-      }, 2000)
-    },
-
-    getPartnerName(conv) {
-      if (!conv.participants) return 'Unknown'
-      const partner = conv.participants.find(p => p.userId !== this.currentUserId)
-      return partner?.name || 'Unknown'
-    },
-
-    getUnreadCount(conv) {
-      if (!conv.unreadCount) return 0
-      return conv.unreadCount[this.currentUserId] || 0
-    },
-
-    getAttachmentUrl(url) {
-      if (!url) return ''
-      if (url.startsWith('http')) return url
-      const base = axios.defaults.baseURL || 'http://localhost:3000'
-      return `${base}/chat-uploads${url.replace('/uploads', '')}`
-    },
-
-    isImage(mimeType) {
-      return mimeType && mimeType.startsWith('image/')
-    },
-
-    openImagePreview(url) {
-      this.previewImage = url
-    },
-
-    scrollToBottom() {
-      const container = this.$refs.messagesContainer
-      if (container) {
-        container.scrollTop = container.scrollHeight
-      }
-    },
-
-    handleScroll() {
-      // Future: infinite scroll for older messages
-    },
-
-    formatTime(dateStr) {
-      if (!dateStr) return ''
-      const date = new Date(dateStr)
-      const now = new Date()
-      const diff = now - date
-
-      if (diff < 60000) return 'now'
-      if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
-      if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    },
-
-    formatFileSize(bytes) {
-      if (!bytes) return ''
-      if (bytes < 1024) return bytes + 'B'
-      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB'
-      return (bytes / 1048576).toFixed(1) + 'MB'
-    },
-
-    goToProduct(productId) {
-      if (productId) {
-        window.open(`/products/${productId}`, '_blank')
-      }
-    }
+const disconnectSocket = () => {
+  if (socket.value) {
+    socket.value.disconnect()
+    socket.value = null
   }
 }
+
+const fetchConversations = async () => {
+  loadingConversations.value = true
+  try {
+    const res = await axios.get('/api/chat/conversations')
+    conversations.value = res.data
+    calculateTotalUnread()
+  } catch (err) {
+    console.error('Error fetching conversations:', err)
+  } finally {
+    loadingConversations.value = false
+  }
+}
+
+const calculateTotalUnread = () => {
+  totalUnread.value = conversations.value.reduce((sum, conv) => {
+    return sum + getUnreadCount(conv)
+  }, 0)
+}
+
+const startConversationWith = async (sellerId, sellerName) => {
+  try {
+    const res = await axios.post('/api/chat/conversations', { sellerId, sellerName })
+    activeConversation.value = res.data
+    if (socket.value) {
+      socket.value.emit('joinRoom', res.data._id)
+    }
+    await fetchMessages()
+  } catch (err) {
+    console.error('Error starting conversation:', err)
+  }
+}
+
+const openChat = async () => {
+  if (!isAuthenticated.value) {
+    toast.error('Please log in to use chat.')
+    router.push('/login')
+    return
+  }
+  isOpen.value = true
+
+  if (props.sellerId) {
+    await startConversationWith(props.sellerId, props.sellerName)
+    if (currentProductContext.value) {
+      showProductCard.value = true
+    }
+  } else {
+    await fetchConversations()
+  }
+}
+
+const closeChat = () => {
+  isOpen.value = false
+  activeConversation.value = null
+  messages.value = []
+  currentProductContext.value = null
+}
+
+const backToList = () => {
+  activeConversation.value = null
+  messages.value = []
+  currentProductContext.value = null
+  fetchConversations()
+}
+
+const openConversation = async (conv) => {
+  activeConversation.value = conv
+  if (socket.value) {
+    socket.value.emit('joinRoom', conv._id)
+  }
+  await fetchMessages()
+}
+
+const fetchMessages = async () => {
+  if (!activeConversation.value) return
+  loadingMessages.value = true
+  try {
+    const res = await axios.get(`/api/chat/conversations/${activeConversation.value._id}/messages`)
+    messages.value = res.data.messages || []
+    nextTick(() => scrollToBottom())
+    fetchConversations()
+  } catch (err) {
+    console.error('Error fetching messages:', err)
+  } finally {
+    loadingMessages.value = false
+  }
+}
+
+const uploadFiles = async () => {
+  const formData = new FormData()
+  selectedFiles.value.forEach(f => formData.append('files', f.raw))
+
+  try {
+    const res = await axios.post('/api/chat/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return res.data.attachments
+  } catch (err) {
+    console.error('Upload error:', err)
+    toast.error('Failed to upload files.')
+    return null
+  }
+}
+
+const sendMessage = async () => {
+  if (!canSend.value || !activeConversation.value) return
+
+  let attachments = []
+
+  if (selectedFiles.value.length > 0) {
+    attachments = await uploadFiles()
+    if (!attachments) return
+  }
+
+  const messageType = attachments.length > 0
+    ? (attachments.some(a => a.mimeType?.startsWith('image/')) ? 'image' : 'file')
+    : 'text'
+
+  const payload = {
+    conversationId: activeConversation.value._id,
+    text: newMessage.value.trim(),
+    messageType,
+    attachments
+  }
+
+  // Attach product context to this message if one is active
+  if (currentProductContext.value) {
+    payload.productContext = { ...currentProductContext.value }
+    // Clear product context after attaching to the first sent message
+    currentProductContext.value = null
+    showProductCard.value = false
+  }
+
+  socket.value.emit('sendMessage', payload)
+
+  newMessage.value = ''
+  selectedFiles.value = []
+  socket.value.emit('stopTyping', { conversationId: activeConversation.value._id })
+}
+
+const triggerFileInput = () => {
+  fileInput.value.click()
+}
+
+const handleFileSelect = (event) => {
+  const files = Array.from(event.target.files)
+  files.forEach(file => {
+    const item = { raw: file, name: file.name, type: file.type, preview: null }
+    if (file.type.startsWith('image/')) {
+      item.preview = URL.createObjectURL(file)
+    }
+    selectedFiles.value.push(item)
+  })
+  event.target.value = ''
+}
+
+const removeFile = (index) => {
+  const file = selectedFiles.value[index]
+  if (file.preview) URL.revokeObjectURL(file.preview)
+  selectedFiles.value.splice(index, 1)
+}
+
+const handleTyping = () => {
+  if (!activeConversation.value || !socket.value) return
+  const currentConvId = activeConversation.value._id
+  socket.value.emit('typing', { conversationId: currentConvId })
+  clearTimeout(typingTimeout.value)
+  typingTimeout.value = setTimeout(() => {
+    if (socket.value) {
+      socket.value.emit('stopTyping', { conversationId: currentConvId })
+    }
+  }, 2000)
+}
+
+const getPartnerName = (conv) => {
+  if (!conv.participants) return 'Unknown'
+  const partner = conv.participants.find(p => p.userId !== currentUserId.value)
+  return partner?.name || 'Unknown'
+}
+
+const getUnreadCount = (conv) => {
+  if (!conv.unreadCount) return 0
+  return conv.unreadCount[currentUserId.value] || 0
+}
+
+const getAttachmentUrl = (url) => {
+  if (!url) return ''
+  if (url.startsWith('http')) return url
+  const base = axios.defaults.baseURL || 'http://localhost:3000'
+  return `${base}/chat-uploads${url.replace('/uploads', '')}`
+}
+
+const isImage = (mimeType) => {
+  return mimeType && mimeType.startsWith('image/')
+}
+
+const openImagePreview = (url) => {
+  previewImage.value = url
+}
+
+const scrollToBottom = () => {
+  const container = messagesContainer.value
+  if (container) {
+    container.scrollTop = container.scrollHeight
+  }
+}
+
+const handleScroll = () => {
+  // Future: infinite scroll for older messages
+}
+
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diff = now - date
+
+  if (diff < 60000) return 'now'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
+  if (diff < 86400000) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + 'B'
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + 'KB'
+  return (bytes / 1048576).toFixed(1) + 'MB'
+}
+
+const goToProduct = (productId) => {
+  if (productId) {
+    window.open(`/products/${productId}`, '_blank')
+  }
+}
+
+onMounted(() => {
+  if (props.productContext) {
+    currentProductContext.value = props.productContext
+  }
+  if (isAuthenticated.value) {
+    connectSocket()
+  }
+  if (props.embedded) {
+    openChat()
+  }
+})
+
+onBeforeUnmount(() => {
+  disconnectSocket()
+})
+
+defineExpose({
+  currentProductContext,
+  showProductCard,
+  isOpen,
+  startConversationWith
+})
 </script>
 
 <style scoped>

@@ -135,72 +135,65 @@
   </div>
 </template>
 
-<script>
-import { mapActions } from 'vuex'
+<script setup>
+import { ref, reactive, getCurrentInstance } from 'vue'
+import { useRouter } from 'vue-router'
+import { useRegister } from '../composables/useAuth'
 
-export default {
-  name: 'Register',
-  data() {
-    return {
-      form: {
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        role: '',
-        password: '',
-        confirmPassword: ''
-      },
-      loading: false,
-      error: ''
+const router = useRouter()
+const { proxy } = getCurrentInstance()
+const registerMutation = useRegister()
+
+const form = reactive({
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  role: '',
+  password: '',
+  confirmPassword: ''
+})
+const loading = ref(false)
+const error = ref('')
+
+const handleRegister = async () => {
+  if (form.password !== form.confirmPassword) {
+    error.value = 'Passwords do not match.'
+    return
+  }
+
+  if (form.password.length < 6) {
+    error.value = 'Password must be at least 6 characters long.'
+    return
+  }
+
+  if (!form.role) {
+    error.value = 'Please select an account type.'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    await registerMutation.mutateAsync({ ...form })
+    proxy.$toast.success('Your account has been created!', {
+      position: 'top-right',
+      timeout: 3000
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    if (form.role === 'seller') {
+      router.push('/seller')
+    } else {
+      router.push('/')
     }
-  },
-  methods: {
-    ...mapActions(['register']),
-    async handleRegister() {
-      // Validate passwords match
-      if (this.form.password !== this.form.confirmPassword) {
-        this.error = 'Passwords do not match.'
-        return
-      }
-      
-      // Validate password length
-      if (this.form.password.length < 6) {
-        this.error = 'Password must be at least 6 characters long.'
-        return
-      }
-      
-      // Validate role selection
-      if (!this.form.role) {
-        this.error = 'Please select an account type.'
-        return
-      }
-      
-      this.loading = true
-      this.error = ''
-      
-      try {
-        const response = await this.register(this.form)
-        this.$toast.success('Your account has been created!', {
-          position: 'top-right',
-          timeout: 3000
-        })
-        
-        // Wait a moment for the store to be updated
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Redirect based on role
-        if (this.form.role === 'seller') {
-          this.$router.push('/seller')
-        } else {
-          this.$router.push('/')
-        }
-      } catch (error) {
-        this.error = error.message || 'Registration failed. Please try again.'
-      } finally {
-        this.loading = false
-      }
-    }
+  } catch (err) {
+    const errData = err.response?.data || err
+    error.value = errData.message || 'Registration failed. Please try again.'
+  } finally {
+    loading.value = false
   }
 }
 </script>

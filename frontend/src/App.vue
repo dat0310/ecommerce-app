@@ -208,118 +208,121 @@
   </div>
 </template>
 
-<script>
-import { mapGetters, mapActions } from 'vuex'
+<script setup>
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { useStore } from 'vuex'
+import { useRoute, useRouter } from 'vue-router'
 import ChatWidget from './components/ChatWidget.vue'
+import { useToast } from 'vue-toastification'
+import { queryClient } from '@/plugins/vue-query'
 
-export default {
-  name: 'App',
-  components: { ChatWidget },
-  data() {
-    return {
-      searchQueryModel: '',
-      wishlistItems: []
-    }
-  },
-  computed: {
-    ...mapGetters(['isAuthenticated', 'cartItemCount', 'currentUser', 'isAdmin', 'isSeller']),
-    showHeader() {
-      return !this.$route.meta?.hideHeader
-    },
-    userDisplayName() {
-      if (this.currentUser && this.currentUser.firstName && this.currentUser.lastName) {
-        return `${this.currentUser.firstName} ${this.currentUser.lastName}`
-      } else if (this.currentUser && this.currentUser.name) {
-        return this.currentUser.name
-      } else if (this.currentUser && this.currentUser.email) {
-        return this.currentUser.email.split('@')[0]
-      }
-      return 'User'
-    },
-    wishlistCount() {
-      return this.wishlistItems.length
-    }
-  },
-  methods: {
-    ...mapActions(['logoutUser', 'fetchUserProfile', 'updateSearchQuery']),
-    executeSearch() {
-      this.updateSearchQuery(this.searchQueryModel);
-      if (this.$route.name !== 'Home' || this.$route.query.q !== this.searchQueryModel) {
-        this.$router.push({ name: 'Home', query: { q: this.searchQueryModel } }).catch(err => {
-          if (err.name !== 'NavigationDuplicated') {
-            throw err;
-          }
-        });
-      }
-    },
-    async logout() {
-      await this.logoutUser()
-      this.$router.push('/login')
-    },
-    loadWishlist() {
-      try {
-        const raw = localStorage.getItem('wishlist')
-        this.wishlistItems = raw ? JSON.parse(raw) : []
-      } catch (_) {
-        this.wishlistItems = []
-      }
-    },
-    removeFromWishlist(productId) {
-      const next = this.wishlistItems.filter(i => i._id !== productId)
-      localStorage.setItem('wishlist', JSON.stringify(next))
-      this.wishlistItems = next
-      this.$toast && this.$toast.info('Removed from wishlist', { position: 'top-right', timeout: 1500 })
-    },
-    handleOpenSellerChat(e) {
-      const { sellerId, sellerName, productContext } = e.detail
-      const chat = this.$refs.globalChat
-      if (chat) {
-        chat.currentProductContext = productContext || null
-        chat.showProductCard = !!productContext
-        chat.isOpen = true
-        chat.startConversationWith(sellerId, sellerName)
-      }
-    }
-  },
-  watch: {
-    '$route.query.q'(newQuery) {
-      this.searchQueryModel = newQuery || '';
-      this.updateSearchQuery(this.searchQueryModel);
-    }
-  },
-  async created() {
-    this.searchQueryModel = this.$route.query.q || '';
-    this.updateSearchQuery(this.searchQueryModel);
-    // Check if user is logged in on app start
-    const token = localStorage.getItem('token')
-    if (token) {
-      this.$store.commit('SET_TOKEN', token)
-      // Fetch user profile to get firstName and lastName
-      try {
-        await this.fetchUserProfile()
-      } catch (error) {
-        console.error('Failed to fetch user profile:', error)
-        // If profile fetch fails, clear the token
-        this.$store.commit('CLEAR_AUTH')
-      }
-    }
-    // init wishlist
-    this.loadWishlist()
-    // react to cross-tab changes
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'wishlist') {
-        this.loadWishlist()
-      }
+const store = useStore()
+const route = useRoute()
+const router = useRouter()
+const toast = useToast()
+
+const globalChat = ref(null)
+const searchQueryModel = ref('')
+const wishlistItems = ref([])
+
+const isAuthenticated = computed(() => store.getters.isAuthenticated)
+const cartItemCount = computed(() => store.getters.cartItemCount)
+const currentUser = computed(() => store.getters.currentUser)
+const isAdmin = computed(() => store.getters.isAdmin)
+const isSeller = computed(() => store.getters.isSeller)
+
+const showHeader = computed(() => !route.meta?.hideHeader)
+
+const userDisplayName = computed(() => {
+  if (currentUser.value?.firstName && currentUser.value?.lastName) {
+    return `${currentUser.value.firstName} ${currentUser.value.lastName}`
+  } else if (currentUser.value?.name) {
+    return currentUser.value.name
+  } else if (currentUser.value?.email) {
+    return currentUser.value.email.split('@')[0]
+  }
+  return 'User'
+})
+
+const wishlistCount = computed(() => wishlistItems.value.length)
+
+const executeSearch = () => {
+  store.dispatch('updateSearchQuery', searchQueryModel.value)
+  if (route.name !== 'Home' || route.query.q !== searchQueryModel.value) {
+    router.push({ name: 'Home', query: { q: searchQueryModel.value } }).catch(err => {
+      if (err.name !== 'NavigationDuplicated') throw err
     })
-    // react to in-tab updates from components
-    window.addEventListener('wishlist-updated', this.loadWishlist)
-    // listen for seller chat open from product pages
-    window.addEventListener('open-seller-chat', this.handleOpenSellerChat)
-  },
-  beforeUnmount() {
-    window.removeEventListener('open-seller-chat', this.handleOpenSellerChat)
   }
 }
+
+const logout = async () => {
+  queryClient.clear()
+  await store.dispatch('logoutUser')
+  router.push('/login')
+}
+
+const loadWishlist = () => {
+  try {
+    const raw = localStorage.getItem('wishlist')
+    wishlistItems.value = raw ? JSON.parse(raw) : []
+  } catch (_) {
+    wishlistItems.value = []
+  }
+}
+
+const removeFromWishlist = (productId) => {
+  const next = wishlistItems.value.filter(i => i._id !== productId)
+  localStorage.setItem('wishlist', JSON.stringify(next))
+  wishlistItems.value = next
+  toast.info('Removed from wishlist', { position: 'top-right', timeout: 1500 })
+}
+
+const handleOpenSellerChat = (e) => {
+  const { sellerId, sellerName, productContext } = e.detail
+  const chat = globalChat.value
+  if (chat) {
+    chat.currentProductContext = productContext || null
+    chat.showProductCard = !!productContext
+    chat.isOpen = true
+    chat.startConversationWith(sellerId, sellerName)
+  }
+}
+
+watch(() => route.query.q, (newQuery) => {
+  searchQueryModel.value = newQuery || ''
+  store.dispatch('updateSearchQuery', searchQueryModel.value)
+})
+
+onMounted(async () => {
+  searchQueryModel.value = route.query.q || ''
+  store.dispatch('updateSearchQuery', searchQueryModel.value)
+  
+  const token = localStorage.getItem('token')
+  if (token) {
+    store.commit('SET_TOKEN', token)
+    try {
+      await store.dispatch('fetchUserProfile')
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error)
+      store.commit('CLEAR_AUTH')
+    }
+  }
+  
+  loadWishlist()
+  
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'wishlist') {
+      loadWishlist()
+    }
+  })
+  window.addEventListener('wishlist-updated', loadWishlist)
+  window.addEventListener('open-seller-chat', handleOpenSellerChat)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('open-seller-chat', handleOpenSellerChat)
+  window.removeEventListener('wishlist-updated', loadWishlist)
+})
 </script>
 
 <style scoped>

@@ -6,6 +6,7 @@ const upload = require('./upload.middleware');
 
 // Public Routes
 router.get('/', productController.getApprovedProducts);
+router.get('/seller/:sellerId/public', productController.getShopProducts);
 
 // Seller Routes
 router.get('/seller/my-products', authenticateToken, requireRole(['seller']), productController.getSellerProducts);

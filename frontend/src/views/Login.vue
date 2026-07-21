@@ -127,42 +127,40 @@
   </div>
 </template>
 
-<script>
-import { mapActions } from 'vuex'
+<script setup>
+import { ref, reactive, getCurrentInstance } from 'vue'
+import { useRouter } from 'vue-router'
+import { useLogin } from '../composables/useAuth'
 
-export default {
-  name: 'Login',
-  data() {
-    return {
-      form: {
-        email: '',
-        password: ''
-      },
-      loading: false,
-      error: '',
-      showPassword: false,
-      rememberMe: false
-    }
-  },
-  methods: {
-    ...mapActions(['login']),
-    async handleLogin() {
-      this.loading = true
-      this.error = ''
-      
-      try {
-        await this.login(this.form)
-        this.$toast.success('Welcome back!', {
-          position: 'top-right',
-          timeout: 3000
-        })
-        this.$router.push('/')
-      } catch (error) {
-        this.error = error.message || 'Login failed. Please try again.'
-      } finally {
-        this.loading = false
-      }
-    }
+const router = useRouter()
+const { proxy } = getCurrentInstance()
+const loginMutation = useLogin()
+
+const form = reactive({
+  email: '',
+  password: ''
+})
+const error = ref('')
+const showPassword = ref(false)
+const rememberMe = ref(false)
+const loading = ref(false)
+
+const handleLogin = async () => {
+  loading.value = true
+  error.value = ''
+
+  try {
+    await loginMutation.mutateAsync(form)
+    proxy.$toast.success('Welcome back!', {
+      position: 'top-right',
+      timeout: 3000
+    })
+    router.push('/')
+  } catch (err) {
+    const errData = err.response?.data || err
+    error.value = errData.message || 'Login failed. Please try again.'
+  } finally {
+    loading.value = false
   }
 }
 </script>

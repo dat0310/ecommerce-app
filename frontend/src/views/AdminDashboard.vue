@@ -703,6 +703,72 @@
       </div>
     </div>
 
+    <!-- Order Details Modal -->
+    <div v-if="showOrderModal && selectedOrder" class="modal-overlay-admin" @click.self="closeOrderModal">
+      <div class="modal-content-admin" style="max-width: 600px;">
+        <div class="modal-header-admin">
+          <h5 class="mb-0">
+            <i class="bi bi-receipt me-2"></i>Order Details (#{{ selectedOrder.orderNumber }})
+          </h5>
+          <button class="btn-close" @click="closeOrderModal"></button>
+        </div>
+        <div class="modal-body-admin" style="max-height: 70vh; overflow-y: auto;">
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <h6 class="text-muted mb-2">Customer Info</h6>
+              <p class="mb-1"><strong>Email:</strong> {{ selectedOrder.userEmail }}</p>
+              <p class="mb-1" v-if="selectedOrder.shippingAddress">
+                <strong>Address:</strong><br>
+                {{ selectedOrder.shippingAddress.street }}<br>
+                {{ selectedOrder.shippingAddress.city }}, {{ selectedOrder.shippingAddress.state }} {{ selectedOrder.shippingAddress.zipCode }}<br>
+                {{ selectedOrder.shippingAddress.country }}
+              </p>
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted mb-2">Order Info</h6>
+              <p class="mb-1"><strong>Date:</strong> {{ formatDate(selectedOrder.createdAt) }}</p>
+              <p class="mb-1">
+                <strong>Status:</strong>
+                <span class="badge ms-2" :class="getStatusBadgeClass(selectedOrder.status)">
+                  {{ selectedOrder.status }}
+                </span>
+              </p>
+              <p class="mb-1">
+                <strong>Payment:</strong>
+                <span class="badge ms-2" :class="getPaymentBadgeClass(selectedOrder.paymentStatus)">
+                  {{ selectedOrder.paymentStatus }}
+                </span>
+              </p>
+            </div>
+          </div>
+
+          <h6 class="text-muted mb-3">Products</h6>
+          <div class="list-group mb-4">
+            <div v-for="product in selectedOrder.products" :key="product.productId" class="list-group-item">
+              <div class="d-flex align-items-center">
+                <img :src="product.image || 'https://via.placeholder.com/60'" class="rounded me-3" style="width: 60px; height: 60px; object-fit: cover;">
+                <div class="flex-grow-1">
+                  <h6 class="mb-1">{{ product.productName || 'Unknown Product' }}</h6>
+                  <div class="d-flex justify-content-between text-muted small">
+                    <span>Qty: {{ product.quantity }}</span>
+                    <span>${{ product.price }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center border-top pt-3">
+            <h5 class="mb-0">Total Amount:</h5>
+            <h5 class="text-primary mb-0">${{ selectedOrder.totalAmount }}</h5>
+          </div>
+        </div>
+        <div class="modal-footer-admin">
+          <button class="btn btn-outline-secondary" @click="closeOrderModal">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Dispute Resolve Modal -->
     <div v-if="showDisputeModal && disputeOrder" class="modal-overlay-admin" @click.self="closeDisputeModal">
       <div class="modal-content-admin" style="max-width: 600px;">
@@ -805,291 +871,299 @@
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, computed, getCurrentInstance } from 'vue'
+import { useQuery, useMutation } from '@tanstack/vue-query'
 import axios from 'axios'
 
-export default {
-  name: 'AdminDashboard',
-  data() {
-    return {
-      activeTab: 'dashboard',
-      orderFilter: 'all',
-      stats: {},
-      orders: [],
-      recentOrders: [],
-      pendingProducts: [],
-      users: [],
-      sellers: [],
-      allProducts: [],
-      vouchers: [],
-      voucherSearch: '',
-      newVoucher: {
-        code: '',
-        discountType: 'percentage',
-        discountValue: null,
-        fee: 0,
-        expiryDate: ''
-      },
-      // Dispute Modal
-      showDisputeModal: false,
-      disputeOrder: null,
-      disputeResolution: '',
-      disputeNote: '',
-      disputeSubmitting: false
+const { proxy } = getCurrentInstance()
+
+const activeTab = ref('dashboard')
+const orderFilter = ref('all')
+const voucherSearch = ref('')
+const newVoucher = ref({
+  code: '',
+  discountType: 'percentage',
+  discountValue: null,
+  fee: 0,
+  expiryDate: ''
+})
+
+const showDisputeModal = ref(false)
+const disputeOrder = ref(null)
+const disputeResolution = ref('')
+const disputeNote = ref('')
+
+const showOrderModal = ref(false)
+const selectedOrder = ref(null)
+
+// Queries
+const { data: statsData } = useQuery({
+  queryKey: ['adminStats'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/orders/stats')
+    return data
+  }
+})
+const stats = computed(() => statsData.value || {})
+
+const { data: ordersData, refetch: refetchOrders } = useQuery({
+  queryKey: ['adminOrders'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/orders')
+    return data
+  }
+})
+const orders = computed(() => ordersData.value || [])
+const recentOrders = computed(() => orders.value.slice(0, 10))
+
+const { data: pendingProductsData, refetch: refetchPendingProducts } = useQuery({
+  queryKey: ['adminPendingProducts'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/products/pending')
+    return data
+  }
+})
+const pendingProducts = computed(() => pendingProductsData.value || [])
+
+const { data: usersData, refetch: refetchUsers } = useQuery({
+  queryKey: ['adminUsers'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/users')
+    return data
+  }
+})
+const users = computed(() => usersData.value || [])
+
+const { data: allProductsData, refetch: refetchAllProducts } = useQuery({
+  queryKey: ['adminAllProducts'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/products/admin/all')
+    return data
+  }
+})
+const allProducts = computed(() => allProductsData.value || [])
+
+const { data: vouchersData, refetch: refetchVouchers } = useQuery({
+  queryKey: ['adminVouchers'],
+  queryFn: async () => {
+    const { data } = await axios.get('/api/vouchers')
+    return data
+  }
+})
+const vouchers = computed(() => vouchersData.value || [])
+
+// Computed properties
+const filteredOrders = computed(() => {
+  if (orderFilter.value === 'all') return orders.value
+  return orders.value.filter(order => order.status === orderFilter.value)
+})
+
+const approvedProducts = computed(() => allProducts.value.filter(product => product.status === 'approved'))
+
+const openDisputes = computed(() => orders.value.filter(order => order.status === 'dispute_open'))
+
+const resolvedDisputes = computed(() => orders.value.filter(order => 
+  (order.status === 'refund_approved' || order.status === 'dispute_resolved') 
+  && order.refundInfo?.adminResolution
+))
+
+const filteredVouchers = computed(() => {
+  if (!voucherSearch.value) return vouchers.value
+  const search = voucherSearch.value.toLowerCase()
+  return vouchers.value.filter(v => v.code.toLowerCase().includes(search))
+})
+
+// Mutations
+const updateProductStatusMutation = useMutation({
+  mutationFn: async ({ productId, status }) => {
+    await axios.patch(`/api/products/${productId}/status`, { status })
+    return status
+  },
+  onSuccess: (status) => {
+    proxy.$toast?.success(`Product ${status} successfully`, { position: 'top-right', timeout: 3000 })
+    refetchPendingProducts()
+    refetchAllProducts()
+  },
+  onError: (error, variables) => {
+    console.error(`Error ${variables.status}ing product:`, error)
+    proxy.$toast?.error(`Failed to ${variables.status} product`, { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const updateUserRoleMutation = useMutation({
+  mutationFn: async ({ userId, role }) => {
+    await axios.patch(`/api/users/${userId}/role`, { role })
+  },
+  onSuccess: () => {
+    proxy.$toast?.success('User role updated successfully', { position: 'top-right', timeout: 3000 })
+    refetchUsers()
+  },
+  onError: (error) => {
+    console.error('Error updating user role:', error)
+    proxy.$toast?.error('Failed to update user role', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const toggleUserStatusMutation = useMutation({
+  mutationFn: async ({ userId, isActive }) => {
+    await axios.patch(`/api/users/${userId}/status`, { isActive })
+    return isActive
+  },
+  onSuccess: (isActive) => {
+    proxy.$toast?.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`, { position: 'top-right', timeout: 3000 })
+    refetchUsers()
+  },
+  onError: (error) => {
+    console.error('Error toggling user status:', error)
+    proxy.$toast?.error('Failed to update user status', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const createVoucherMutation = useMutation({
+  mutationFn: async (voucher) => {
+    await axios.post('/api/vouchers', voucher)
+  },
+  onSuccess: () => {
+    proxy.$toast?.success('Voucher created successfully', { position: 'top-right', timeout: 3000 })
+    refetchVouchers()
+    newVoucher.value = {
+      code: '',
+      discountType: 'percentage',
+      discountValue: null,
+      fee: 0,
+      expiryDate: ''
     }
   },
-  computed: {
-    filteredOrders() {
-      if (this.orderFilter === 'all') {
-        return this.orders
-      }
-      return this.orders.filter(order => order.status === this.orderFilter)
-    },
-    approvedProducts() {
-      return this.allProducts.filter(product => product.status === 'approved')
-    },
-    openDisputes() {
-      return this.orders.filter(order => order.status === 'dispute_open')
-    },
-    resolvedDisputes() {
-      return this.orders.filter(order => 
-        (order.status === 'refund_approved' || order.status === 'dispute_resolved') 
-        && order.refundInfo?.adminResolution
-      )
-    },
-    filteredVouchers() {
-      if (!this.voucherSearch) return this.vouchers
-      const search = this.voucherSearch.toLowerCase()
-      return this.vouchers.filter(v => 
-        v.code.toLowerCase().includes(search)
-      )
-    }
+  onError: (error) => {
+    console.error('Error creating voucher:', error)
+    proxy.$toast?.error('Failed to create voucher', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const deleteVoucherMutation = useMutation({
+  mutationFn: async (voucherId) => {
+    await axios.delete(`/api/vouchers/${voucherId}`)
   },
-  async mounted() {
-    await this.loadDashboardData()
+  onSuccess: () => {
+    proxy.$toast?.success('Voucher deleted successfully', { position: 'top-right', timeout: 3000 })
+    refetchVouchers()
   },
-  methods: {
-    async loadDashboardData() {
-      try {
-        await Promise.all([
-          this.loadStats(),
-          this.loadOrders(),
-          this.loadPendingProducts(),
-          this.loadUsers(),
-          this.loadAllProducts(),
-          this.loadVouchers()
-        ])
-      } catch (error) {
-        console.error('Error loading dashboard data:', error)
-      }
-    },
-    async loadStats() {
-      try {
-        const response = await axios.get('/api/orders/stats')
-        this.stats = response.data
-      } catch (error) {
-        console.error('Error loading stats:', error)
-      }
-    },
-    async loadOrders() {
-      try {
-        const response = await axios.get('/api/orders')
-        this.orders = response.data
-        this.recentOrders = response.data.slice(0, 10)
-      } catch (error) {
-        console.error('Error loading orders:', error)
-      }
-    },
-    async loadPendingProducts() {
-      try {
-        const response = await axios.get('/api/products/pending')
-        this.pendingProducts = response.data
-      } catch (error) {
-        console.error('Error loading pending products:', error)
-      }
-    },
-    async loadUsers() {
-      try {
-        const response = await axios.get('/api/users')
-        this.users = response.data
-      } catch (error) {
-        console.error('Error loading users:', error)
-      }
-    },
-    async loadAllProducts() {
-      try {
-        const response = await axios.get('/api/products/admin/all')
-        this.allProducts = response.data
-      } catch (error) {
-        console.error('Error loading all products:', error)
-      }
-    },
-    async approveProduct(productId) {
-      try {
-        await axios.patch(`/api/products/${productId}/status`, { status: 'approved' })
-        await this.loadPendingProducts()
-        this.$toast.success('Product approved successfully')
-      } catch (error) {
-        console.error('Error approving product:', error)
-        this.$toast.error('Failed to approve product')
-      }
-    },
-    async rejectProduct(productId) {
-      try {
-        await axios.patch(`/api/products/${productId}/status`, { status: 'rejected' })
-        await this.loadPendingProducts()
-        this.$toast.success('Product rejected successfully')
-      } catch (error) {
-        console.error('Error rejecting product:', error)
-        this.$toast.error('Failed to reject product')
-      }
-    },
-    async updateUserRole(userId, role) {
-      try {
-        await axios.patch(`/api/users/${userId}/role`, { role })
-        await this.loadUsers()
-        this.$toast.success('User role updated successfully')
-      } catch (error) {
-        console.error('Error updating user role:', error)
-        this.$toast.error('Failed to update user role')
-      }
-    },
-    async toggleUserStatus(userId, isActive) {
-      try {
-        await axios.patch(`/api/users/${userId}/status`, { isActive })
-        await this.loadUsers()
-        this.$toast.success(`User ${isActive ? 'activated' : 'deactivated'} successfully`)
-      } catch (error) {
-        console.error('Error toggling user status:', error)
-        this.$toast.error('Failed to update user status')
-      }
-    },
-    viewOrder(order) {
-      this.$toast.info('Order Details', {
-        description: `
-          Order #${order.orderNumber}
-          Customer: ${order.userEmail}
-          Total: $${order.totalAmount}
-          Status: ${order.status}
-          Payment: ${order.paymentStatus}
-          Date: ${this.formatDate(order.createdAt)}
-          Products: ${order.products.length} items
-        `,
-        duration: 5000
-      })
-    },
-    getStatusBadgeClass(status) {
-      const classes = {
-        pending: 'bg-warning',
-        confirmed: 'bg-info',
-        processing: 'bg-primary',
-        shipped: 'bg-secondary',
-        delivered: 'bg-success',
-        cancelled: 'bg-danger',
-        refund_requested: 'bg-warning',
-        refund_approved: 'bg-success',
-        refund_rejected: 'bg-danger',
-        dispute_open: 'bg-info',
-        dispute_resolved: 'bg-secondary'
-      }
-      return classes[status] || 'bg-secondary'
-    },
-    getPaymentBadgeClass(status) {
-      const classes = {
-        pending: 'bg-warning',
-        completed: 'bg-success',
-        failed: 'bg-danger',
-        refunded: 'bg-info'
-      }
-      return classes[status] || 'bg-secondary'
-    },
-    formatDate(date) {
-      return new Date(date).toLocaleDateString()
-    },
-    generateVoucherCode() {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-      let code = ''
-      for (let i = 0; i < 8; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length))
-      }
-      this.newVoucher.code = code
-    },
-    async createVoucher() {
-      try {
-        await axios.post('/api/vouchers', this.newVoucher)
-        this.loadVouchers()
-        this.newVoucher = {
-          code: '',
-          discountType: 'percentage',
-          discountValue: null,
-          fee: 0,
-          expiryDate: ''
-        }
-        this.$toast.success('Voucher created successfully')
-      } catch (error) {
-        console.error('Error creating voucher:', error)
-        this.$toast.error('Failed to create voucher')
-      }
-    },
-    async loadVouchers() {
-      try {
-        const response = await axios.get('/api/vouchers')
-        this.vouchers = response.data
-      } catch (error) {
-        console.error('Error loading vouchers:', error)
-      }
-    },
-    async deleteVoucher(voucherId) {
-      if (!confirm('Are you sure you want to delete this voucher?')) return;
-      try {
-        await axios.delete(`/api/vouchers/${voucherId}`)
-        await this.loadVouchers()
-        this.$toast.success('Voucher deleted successfully')
-      } catch (error) {
-        console.error('Error deleting voucher:', error)
-        this.$toast.error('Failed to delete voucher')
-      }
-    },
-    getSellerProductCount(sellerId) {
-      if (!this.allProducts) return 0
-      return this.allProducts.filter(p => p.sellerId === sellerId).length
-    },
-    // Dispute Resolution
-    openDisputeResolveModal(order) {
-      this.disputeOrder = order;
-      this.disputeResolution = '';
-      this.disputeNote = '';
-      this.showDisputeModal = true;
-    },
-    closeDisputeModal() {
-      this.showDisputeModal = false;
-      this.disputeOrder = null;
-      this.disputeResolution = '';
-      this.disputeNote = '';
-    },
-    async submitDisputeResolution() {
-      if (!this.disputeOrder || !this.disputeResolution) return;
-      this.disputeSubmitting = true;
-      try {
-        await axios.patch(`/api/orders/${this.disputeOrder._id}/resolve-dispute`, {
-          resolution: this.disputeResolution,
-          note: this.disputeNote
-        });
-        await this.loadOrders();
-        const msg = this.disputeResolution === 'refund' 
-          ? 'Dispute resolved - Refund approved for buyer' 
-          : 'Dispute resolved - Refund denied';
-        this.$toast.success(msg);
-        this.closeDisputeModal();
-      } catch (error) {
-        console.error('Error resolving dispute:', error);
-        this.$toast.error(error.response?.data?.message || 'Failed to resolve dispute');
-      } finally {
-        this.disputeSubmitting = false;
-      }
-    }
+  onError: (error) => {
+    console.error('Error deleting voucher:', error)
+    proxy.$toast?.error('Failed to delete voucher', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const resolveDisputeMutation = useMutation({
+  mutationFn: async () => {
+    const order = disputeOrder.value
+    if (!order || !disputeResolution.value) return
+    await axios.patch(`/api/orders/${order._id}/resolve-dispute`, {
+      resolution: disputeResolution.value,
+      note: disputeNote.value
+    })
+  },
+  onSuccess: () => {
+    const msg = disputeResolution.value === 'refund' 
+      ? 'Dispute resolved - Refund approved for buyer' 
+      : 'Dispute resolved - Refund denied'
+    proxy.$toast?.success(msg, { position: 'top-right', timeout: 3000 })
+    refetchOrders()
+    closeDisputeModal()
+  },
+  onError: (error) => {
+    console.error('Error resolving dispute:', error)
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to resolve dispute', { position: 'top-right', timeout: 3000 })
+  }
+})
+
+const disputeSubmitting = computed(() => resolveDisputeMutation.isPending.value)
+
+// Methods
+const approveProduct = (productId) => updateProductStatusMutation.mutate({ productId, status: 'approved' })
+const rejectProduct = (productId) => updateProductStatusMutation.mutate({ productId, status: 'rejected' })
+const updateUserRole = (userId, role) => updateUserRoleMutation.mutate({ userId, role })
+const toggleUserStatus = (userId, isActive) => toggleUserStatusMutation.mutate({ userId, isActive })
+
+const viewOrder = (order) => {
+  selectedOrder.value = order
+  showOrderModal.value = true
+}
+
+const closeOrderModal = () => {
+  showOrderModal.value = false
+  setTimeout(() => {
+    selectedOrder.value = null
+  }, 300)
+}
+
+const getStatusBadgeClass = (status) => {
+  const classes = {
+    pending: 'bg-warning',
+    confirmed: 'bg-info',
+    processing: 'bg-primary',
+    shipped: 'bg-secondary',
+    delivered: 'bg-success',
+    cancelled: 'bg-danger',
+    refund_requested: 'bg-warning',
+    refund_approved: 'bg-success',
+    refund_rejected: 'bg-danger',
+    dispute_open: 'bg-info',
+    dispute_resolved: 'bg-secondary'
+  }
+  return classes[status] || 'bg-secondary'
+}
+
+const getPaymentBadgeClass = (status) => {
+  const classes = {
+    pending: 'bg-warning',
+    completed: 'bg-success',
+    failed: 'bg-danger',
+    refunded: 'bg-info'
+  }
+  return classes[status] || 'bg-secondary'
+}
+
+const formatDate = (date) => new Date(date).toLocaleDateString()
+
+const generateVoucherCode = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let code = ''
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  newVoucher.value.code = code
+}
+
+const createVoucher = () => createVoucherMutation.mutate(newVoucher.value)
+
+const deleteVoucher = (voucherId) => {
+  if (confirm('Are you sure you want to delete this voucher?')) {
+    deleteVoucherMutation.mutate(voucherId)
   }
 }
+
+const getSellerProductCount = (sellerId) => {
+  if (!allProducts.value) return 0
+  return allProducts.value.filter(p => p.sellerId === sellerId).length
+}
+
+const openDisputeResolveModal = (order) => {
+  disputeOrder.value = order
+  disputeResolution.value = ''
+  disputeNote.value = ''
+  showDisputeModal.value = true
+}
+
+const closeDisputeModal = () => {
+  showDisputeModal.value = false
+  disputeOrder.value = null
+  disputeResolution.value = ''
+  disputeNote.value = ''
+}
+
+const submitDisputeResolution = () => resolveDisputeMutation.mutate()
 </script>
 
 <style scoped>
