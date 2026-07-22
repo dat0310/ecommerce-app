@@ -238,6 +238,19 @@
                 <div v-if="errorMsg" class="alert alert-danger mt-3" role="alert">
                   {{ errorMsg }}
                 </div>
+
+                <!-- Danger Zone -->
+                <hr class="my-5 border-danger">
+                <div class="card border-danger shadow-sm mb-4">
+                  <div class="card-body">
+                    <h5 class="text-danger mb-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Danger Zone</h5>
+                    <p class="text-muted">Once you delete your account, there is no going back. Please be certain.</p>
+                    <button type="button" class="btn btn-outline-danger" @click="showDeleteModal = true">
+                      Delete Account
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
           </div>
@@ -922,6 +935,33 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Account Modal -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <div class="modal-content-custom bg-white border-0" style="max-width: 400px; border-radius: 1.5rem; overflow: hidden; box-shadow: 0 1rem 3rem rgba(0,0,0,0.15) !important;">
+        <div class="modal-body p-4 p-md-5 text-center">
+          <button type="button" class="btn-close position-absolute top-0 end-0 m-3" aria-label="Close" @click="showDeleteModal = false" :disabled="isDeletingAccount"></button>
+          
+          <div class="mb-4 mt-2">
+            <div class="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 rounded-circle" style="width: 80px; height: 80px;">
+              <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 2.5rem;"></i>
+            </div>
+          </div>
+          <h4 class="fw-bold mb-3 text-dark">Delete Account</h4>
+          <p class="text-muted mb-4" style="font-size: 0.95rem;">
+            Are you absolutely sure you want to delete your account? This action <strong>cannot be undone</strong> and all your data will be permanently removed.
+          </p>
+          <div class="d-flex gap-3 mt-4">
+            <button class="btn btn-light flex-grow-1 py-2 fw-semibold" style="border-radius: 0.75rem; background-color: #f1f5f9; border: 1px solid #e2e8f0;" @click="showDeleteModal = false" :disabled="isDeletingAccount">Cancel</button>
+            <button class="btn btn-danger flex-grow-1 py-2 fw-semibold" style="border-radius: 0.75rem;" @click="confirmDeleteAccount" :disabled="isDeletingAccount">
+              <span v-if="isDeletingAccount" class="spinner-border spinner-border-sm me-2"></span>
+              Yes, Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -990,6 +1030,9 @@ const showRefundModal = ref(false)
 const refundOrder = ref(null)
 const refundReason = ref('Item damaged or broken')
 const refundDescription = ref('')
+
+const showDeleteModal = ref(false)
+const isDeletingAccount = ref(false)
 const refundReasons = [
   { value: 'Item damaged or broken', label: 'Item damaged or broken', icon: 'bi bi-box-seam' },
   { value: 'Item does not match description', label: 'Doesn\'t match description', icon: 'bi bi-exclamation-triangle' },
@@ -1227,6 +1270,26 @@ const cancelOrderMutation = useMutation({
     proxy.$toast?.error(error.response?.data?.message || 'Failed to cancel order.', { position: 'top-right', timeout: 3000 })
   }
 })
+
+const deleteAccountMutation = useMutation({
+  mutationFn: async () => {
+    await axios.delete('/api/users/me')
+  },
+  onSuccess: () => {
+    store.dispatch('logoutUser')
+    proxy.$toast?.success('Your account has been deleted successfully.', { position: 'top-right', timeout: 3000 })
+    window.location.href = '/'
+  },
+  onError: (error) => {
+    proxy.$toast?.error(error.response?.data?.message || 'Failed to delete account.', { position: 'top-right', timeout: 3000 })
+    isDeletingAccount.value = false
+  }
+})
+
+const confirmDeleteAccount = () => {
+  isDeletingAccount.value = true
+  deleteAccountMutation.mutate()
+}
 
 const confirmReceivedMutation = useMutation({
   mutationFn: async (orderId) => {

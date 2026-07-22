@@ -11,6 +11,7 @@ router.post('/refresh-token', userController.refreshToken);
 // Me Routes
 router.get('/me', authenticateToken, userController.getMe);
 router.patch('/me', authenticateToken, userController.updateMe);
+router.delete('/me', authenticateToken, userController.deleteMe);
 router.get('/me/orders', authenticateToken, userController.getMyOrders);
 
 // User Addresses

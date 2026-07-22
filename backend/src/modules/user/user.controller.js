@@ -186,6 +186,17 @@ class UserController {
         }
     }
 
+    async deleteMe(req, res) {
+        try {
+            const User = getUserModel();
+            const user = await User.findByIdAndDelete(req.user.id);
+            if (!user) return res.status(404).json({ message: 'User not found' });
+            res.json({ message: 'Your account has been deleted successfully' });
+        } catch (error) {
+            res.status(500).json({ message: error.message });
+        }
+    }
+
     async changePassword(req, res) {
         try {
             const User = getUserModel();

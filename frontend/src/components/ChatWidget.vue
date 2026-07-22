@@ -30,6 +30,23 @@
 
       <!-- Conversation List -->
       <div v-if="!activeConversation" class="chat-body conversation-list">
+        
+        <!-- AI Assistant Banner -->
+        <div class="p-3 border-bottom d-flex align-items-center justify-content-between" 
+             style="background: linear-gradient(135deg, #f0f4ff 0%, #e0c3fc 100%); cursor: pointer; transition: all 0.2s;"
+             @click="startAIChat">
+          <div class="d-flex align-items-center">
+            <div class="bg-white rounded-circle d-flex align-items-center justify-content-center shadow-sm me-3" style="width: 40px; height: 40px;">
+              <i class="bi bi-robot fs-5 text-primary"></i>
+            </div>
+            <div>
+              <h6 class="mb-0 text-dark fw-bold">ShopHub AI Assistant</h6>
+              <small class="text-dark opacity-75">Instant answers 24/7</small>
+            </div>
+          </div>
+          <i class="bi bi-chevron-right text-muted"></i>
+        </div>
+
         <div v-if="loadingConversations" class="text-center py-4">
           <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
           <p class="text-muted small mt-2">Loading conversations...</p>
@@ -45,8 +62,9 @@
           :class="{ 'has-unread': getUnreadCount(conv) > 0 }"
           @click="openConversation(conv)"
         >
-          <div class="conv-avatar">
-            <i class="bi bi-person-circle"></i>
+          <div class="conv-avatar" :class="{'bg-primary text-white': getPartnerName(conv) === 'ShopHub AI Assistant'}">
+            <i v-if="getPartnerName(conv) === 'ShopHub AI Assistant'" class="bi bi-robot"></i>
+            <i v-else class="bi bi-person-circle"></i>
           </div>
           <div class="conv-info">
             <div class="d-flex justify-content-between align-items-center">
@@ -298,11 +316,27 @@ const fetchConversations = async () => {
     conversations.value = res.data
     calculateTotalUnread()
   } catch (err) {
-    console.error('Error fetching conversations:', err)
+    console.error('Failed to load conversations:', err)
   } finally {
     loadingConversations.value = false
   }
 }
+
+const startAIChat = async () => {
+  try {
+    const res = await axios.post('/api/chat/conversations', {
+      sellerId: 'gemini-ai',
+      sellerName: 'ShopHub AI Assistant'
+    })
+    const conv = res.data
+    openConversation(conv)
+    fetchConversations()
+  } catch (err) {
+    toast.error('Could not connect to AI Assistant.')
+    console.error(err)
+  }
+}
+
 
 const calculateTotalUnread = () => {
   totalUnread.value = conversations.value.reduce((sum, conv) => {
@@ -479,7 +513,7 @@ const getAttachmentUrl = (url) => {
   if (!url) return ''
   if (url.startsWith('http')) return url
   const base = axios.defaults.baseURL || 'http://localhost:3000'
-  return `${base}/chat-uploads${url.replace('/uploads', '')}`
+  return `${base}${url}`
 }
 
 const isImage = (mimeType) => {
