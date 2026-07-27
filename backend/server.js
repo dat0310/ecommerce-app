@@ -32,7 +32,7 @@ const startServer = async () => {
         console.log('Socket.io initialized');
 
         // Start listening
-        server.listen(PORT, () => {
+        server.listen(PORT, '0.0.0.0', () => {
             console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
