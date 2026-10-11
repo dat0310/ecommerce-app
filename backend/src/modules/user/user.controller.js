@@ -12,8 +12,11 @@ class UserController {
                 return res.status(400).json({ message: 'User already exists with this email.' });
             }
 
-            const validRoles = ['customer', 'admin', 'seller'];
-            const userRole = role && validRoles.includes(role) ? role : 'customer';
+            // Only these roles may be claimed during self-signup. 'admin' is deliberately
+            // excluded so a new account can never grant itself elevated privileges.
+            // Admins are promoted out-of-band by an existing admin via PATCH /api/users/:id/role.
+            const SELF_SIGNABLE_ROLES = ['customer', 'seller'];
+            const userRole = SELF_SIGNABLE_ROLES.includes(role) ? role : 'customer';
 
             const user = new User({
                 firstName,
@@ -125,11 +128,20 @@ class UserController {
         }
     }
 
+    // Fields a user is allowed to change on their own profile. Anything else
+    // (role, isActive, refreshToken, password, _id, ...) is ignored to prevent
+    // privilege escalation via mass assignment.
+    static SELF_EDITABLE_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'avatar', 'addresses'];
+
     async updateMe(req, res) {
         try {
             const User = getUserModel();
-            const updateData = { ...req.body };
-            if (updateData.password) delete updateData.password;
+            const updateData = {};
+            for (const field of UserController.SELF_EDITABLE_FIELDS) {
+                if (req.body[field] !== undefined) {
+                    updateData[field] = req.body[field];
+                }
+            }
             updateData.updatedAt = Date.now();
 
             const user = await User.findByIdAndUpdate(req.user.id, updateData, { new: true }).select('-password');
@@ -160,15 +172,23 @@ class UserController {
         }
     }
 
+    // Fields an admin may change on another user. `password` is intentionally
+    // excluded — it must go through changePassword so the pre-save bcrypt hook runs.
+    static ADMIN_EDITABLE_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'role', 'isActive', 'avatar'];
+
     async updateUser(req, res) {
         try {
             const User = getUserModel();
-            const updateData = { ...req.body };
-            if (updateData.password) delete updateData.password;
+            const updateData = {};
+            for (const field of UserController.ADMIN_EDITABLE_FIELDS) {
+                if (req.body[field] !== undefined) {
+                    updateData[field] = req.body[field];
+                }
+            }
             updateData.updatedAt = Date.now();
 
             const user = await User.findByIdAndUpdate(req.params.id, updateData, { new: true }).select('-password');
-            if (!user) return res.status(404).json({ error: { message: 'User not found' } });
+            if (!user) return res.status(404).json({ message: 'User not found' });
             res.json({ message: 'User updated successfully', user });
         } catch (error) {
             res.status(400).json({ error: { message: error.message } });
@@ -178,6 +198,10 @@ class UserController {
     async deleteUser(req, res) {
         try {
             const User = getUserModel();
+            // Prevent an admin from deleting their own account.
+            if (req.params.id === req.user.id) {
+                return res.status(400).json({ message: 'You cannot delete your own account.' });
+            }
             const user = await User.findByIdAndDelete(req.params.id);
             if (!user) return res.status(404).json({ message: 'User not found' });
             res.json({ message: 'User deleted successfully' });
@@ -201,6 +225,10 @@ class UserController {
         try {
             const User = getUserModel();
             const { currentPassword, newPassword } = req.body;
+
+            if (!newPassword || newPassword.length < 6) {
+                return res.status(400).json({ error: { message: 'New password must be at least 6 characters long.' } });
+            }
 
             const user = await User.findById(req.user.id);
             if (!user) return res.status(404).json({ error: { message: 'User not found' } });
@@ -343,6 +371,10 @@ class UserController {
             if (!validRoles.includes(role)) {
                 return res.status(400).json({ message: 'Invalid role specified.' });
             }
+            // Prevent an admin from locking themselves out by demoting their own role.
+            if (req.params.id === req.user.id && role !== 'admin') {
+                return res.status(400).json({ message: 'You cannot change your own admin role.' });
+            }
             const user = await User.findByIdAndUpdate(
                 req.params.id,
                 { role, updatedAt: Date.now() },
@@ -358,6 +390,10 @@ class UserController {
     async toggleUserStatus(req, res) {
         try {
             const User = getUserModel();
+            // Prevent an admin from deactivating their own account.
+            if (req.params.id === req.user.id && !req.body.isActive) {
+                return res.status(400).json({ message: 'You cannot deactivate your own account.' });
+            }
             const user = await User.findByIdAndUpdate(
                 req.params.id,
                 { isActive: req.body.isActive, updatedAt: Date.now() },

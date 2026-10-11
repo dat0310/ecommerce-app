@@ -8,6 +8,15 @@ const { initializeSocket } = require('./src/modules/chat/chat.socket');
 
 const PORT = process.env.PORT || 3000;
 
+// Fail fast if no JWT secret is configured — running with a weak/default secret
+// would let anyone forge tokens for any user, including admins.
+const KNOWN_WEAK_SECRETS = ['changeme', 'secret', 'yoursecret', 'default', 'test'];
+if (!process.env.JWT_SECRET || KNOWN_WEAK_SECRETS.includes(process.env.JWT_SECRET.toLowerCase())) {
+    console.error('FATAL: JWT_SECRET is missing or set to a known weak value.');
+    console.error('Set a strong JWT_SECRET in your .env file before starting the server.');
+    process.exit(1);
+}
+
 // Create HTTP server
 const server = http.createServer(app);
 

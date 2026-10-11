@@ -329,7 +329,11 @@ const updateQuantity = (item, quantity) => {
       timeout: 3000
     })
   } else {
-    updateCartItemMutation.mutate({ item, quantity })
+    updateCartItemMutation.mutate({ 
+      productId: item._id, 
+      quantity, 
+      selectedOptions: item.selectedOptions 
+    })
   }
 }
 
